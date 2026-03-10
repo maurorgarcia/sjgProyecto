@@ -1,0 +1,311 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-base: #0d1b2a;
+  --bg-surface: #132337;
+  --bg-elevated: #1a2f47;
+  --bg-hover: #203a58;
+  --border: #2a4060;
+  --border-bright: #3a5a80;
+  --text-primary: #e8f0f8;
+  --text-secondary: #8ca9c8;
+  --text-muted: #4a6a8a;
+  --accent: #f59e0b;
+  --accent-dim: #78490a;
+  --status-pending: #f59e0b;
+  --status-review: #3b82f6;
+  --status-done: #22c55e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Scrollbars ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Table base ── */
+.timeclock-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+}
+
+.timeclock-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-bright);
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.timeclock-table thead th:last-child { border-right: none; }
+
+.timeclock-table tbody tr {
+  transition: background 0.1s;
+}
+
+.timeclock-table tbody tr:hover td {
+  background: var(--bg-hover);
+}
+
+.timeclock-table tbody tr.selected td {
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.timeclock-table tbody td {
+  background: var(--bg-surface);
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  height: 34px;
+  vertical-align: middle;
+  position: relative;
+}
+
+.timeclock-table tbody td:last-child { border-right: none; }
+
+/* ── Editable cell ── */
+.cell-input {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0 10px;
+  color: var(--text-primary);
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+  line-height: 34px;
+}
+
+.cell-input:focus {
+  background: rgba(245, 158, 11, 0.1);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+/* ── Filter bar ── */
+.filter-input {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  padding: 5px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.filter-input:focus {
+  border-color: var(--accent);
+}
+
+.filter-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* ── Status badge ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+.badge-pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--status-pending);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-review {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--status-review);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-done {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--status-done);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+/* ── Button ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  outline: none;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #0d1b2a;
+}
+.btn-primary:hover { background: #fbbf24; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-bright);
+  color: var(--text-primary);
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.2s ease both;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--status-done);
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+/* ── Resizable column handle ── */
+.resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  cursor: col-resize;
+  user-select: none;
+}
+.resize-handle:hover { background: var(--accent); opacity: 0.6; }
+
+/* ── Header second row (filters) ── */
+.timeclock-table thead th:hover .sort-handle {
+  opacity: 1;
+}
+
+/* ── Sortable th hover ── */
+.timeclock-table thead th:has(div[onclick]) {
+  cursor: pointer;
+}
+.timeclock-table thead th:has(div[onclick]):hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* ── Row number ── */
+.row-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  user-select: none;
+}
+
+/* ── Filter bar second row ── */
+.filter-row {
+  padding-top: 10px;
+  margin-top: 2px;
+}
+
+/* ══ MOBILE ══════════════════════════════════════════════ */
+@media (max-width: 767px) {
+  body { font-size: 12px; }
+
+  .btn { padding: 6px 10px; font-size: 11px; }
+  .btn-primary { padding: 7px 12px; }
+
+  .filter-input {
+    font-size: 12px;
+    padding: 6px 9px;
+  }
+
+  /* Mobile card shadows */
+  .mobile-card {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  /* Prevent table on mobile */
+  .timeclock-table { display: none; }
+
+  /* Full width filters on mobile */
+  .filter-input[placeholder="Buscar empleado…"] { width: 100%; }
+}
+
+@media (min-width: 768px) {
+  .mobile-only { display: none; }
+}
+
+/* ══ TOTALS BAR ══════════════════════════════════════════ */
+.totals-bar {
+  border-top: 1px solid var(--border);
+  padding: 6px 20px;
+  background: var(--bg-elevated);
+}
+
+/* ══ LOGIN PAGE ══════════════════════════════════════════ */
+.login-card {
+  box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+}
