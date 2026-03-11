@@ -1,4 +1,15 @@
+"use client";
+import { useRouter, usePathname } from "next/navigation";
+
 export default function Header({ onLogout }: { onLogout: () => void }) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const go = (path: string) => {
+    if (pathname === path) return;
+    router.push(path);
+  };
+
   return (
     <header className="app-header">
       <div className="app-header-brand">
@@ -14,6 +25,23 @@ export default function Header({ onLogout }: { onLogout: () => void }) {
       </div>
 
       <div className="app-header-spacer" />
+
+      <nav className="app-header-nav">
+        <button
+          type="button"
+          onClick={() => go("/")}
+          className={`app-header-nav-btn${pathname === "/" ? " active" : ""}`}
+        >
+          Tabla
+        </button>
+        <button
+          type="button"
+          onClick={() => go("/dashboard")}
+          className={`app-header-nav-btn${pathname === "/dashboard" ? " active" : ""}`}
+        >
+          Dashboard
+        </button>
+      </nav>
 
       <button
         type="button"
@@ -68,6 +96,32 @@ export default function Header({ onLogout }: { onLogout: () => void }) {
           font-family: 'JetBrains Mono', monospace;
         }
         .app-header-spacer { flex: 1; }
+
+        .app-header-nav {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-right: 8px;
+        }
+        .app-header-nav-btn {
+          border: none;
+          background: transparent;
+          padding: 6px 10px;
+          border-radius: 999px;
+          font-size: 12px;
+          color: var(--t3);
+          cursor: pointer;
+          transition: background 0.15s, color 0.15s;
+        }
+        .app-header-nav-btn:hover {
+          background: var(--bg-hover);
+          color: var(--t1);
+        }
+        .app-header-nav-btn.active {
+          background: var(--accent-bg);
+          color: var(--accent);
+          font-weight: 600;
+        }
         .app-header-logout {
           padding: 8px 14px;
           height: 36px;

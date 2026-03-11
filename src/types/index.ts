@@ -11,6 +11,7 @@ export interface TimeError {
   ot: string;
   ot_em: string;
   ot_em2: string;
+  grupo_id: string | null;
   hh_normales: string;   // formato "HH:MM"
   hh_50: string;
   hh_100: string;

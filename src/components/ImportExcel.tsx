@@ -16,6 +16,7 @@ const HMAP: Record<string,keyof TimeError> = {
   "hh nor.":"hh_normales","hh nor":"hh_normales","hh normales":"hh_normales","hs normales":"hh_normales",
   "hh e.50%":"hh_50","hh 50%":"hh_50","hs 50%":"hh_50",
   "hh e.100%":"hh_100","hh 100%":"hh_100","hs 100%":"hh_100",
+  grupo:"grupo_id","grupo id":"grupo_id","grupo_id":"grupo_id",
   estado:"estado",observaciones:"observaciones",obs:"observaciones",insa:"insa",polu:"polu",noct:"noct",
 };
 
@@ -80,7 +81,25 @@ export default function ImportExcel({ onImport, currentFecha, onReset }: Props) 
         let insa=toHHMM(r.insa),polu=toHHMM(r.polu),noct=toHHMM(r.noct);
         const applyC=(comp:"insa"|"polu"|"noct"|null,hora:string)=>{ if(!comp||hora==="00:00") return; if(comp==="insa"&&insa==="00:00") insa=hora; if(comp==="polu"&&polu==="00:00") polu=hora; if(comp==="noct"&&noct==="00:00") noct=hora; };
         applyC(nor.comp,nor.hora); applyC(e50.comp,e50.hora); applyC(e100.comp,e100.hora);
-        return { fecha:normDate(r.fecha), contrato:String(r.contrato??""), empleado:String(r.empleado??""), motivo:normMotivo(r.motivo), sector:normSector(r.sector), ot:String(r.ot??""), ot_em:String(r.ot_em??""), ot_em2:String(r.ot_em2??""), hh_normales:nor.hora, hh_50:e50.hora, hh_100:e100.hora, estado:(["Pendiente","En revisión","Corregido"].includes(String(r.estado))?r.estado:"Pendiente") as "Pendiente"|"En revisión"|"Corregido", observaciones:String(r.observaciones??""), insa, polu, noct };
+        return {
+          fecha:normDate(r.fecha),
+          contrato:String(r.contrato??""),
+          empleado:String(r.empleado??""),
+          motivo:normMotivo(r.motivo),
+          sector:normSector(r.sector),
+          ot:String(r.ot??""),
+          ot_em:String(r.ot_em??""),
+          ot_em2:String(r.ot_em2??""),
+          grupo_id: String(r.grupo_id ?? "") || null,
+          hh_normales:nor.hora,
+          hh_50:e50.hora,
+          hh_100:e100.hora,
+          estado:(["Pendiente","En revisión","Corregido"].includes(String(r.estado))?r.estado:"Pendiente") as "Pendiente"|"En revisión"|"Corregido",
+          observaciones:String(r.observaciones??""),
+          insa,
+          polu,
+          noct
+        };
       });
       if(mode==="replace_all"){ await deleteAll(); toast("Base limpiada",{icon:"🗑️"}); }
       else if(mode==="replace_date"){ const fechas=Array.from(new Set(rows.map(r=>r.fecha))); await Promise.all(fechas.map(f=>deleteByFecha(f))); }

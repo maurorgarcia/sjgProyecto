@@ -263,6 +263,11 @@ export default function TimeErrorTable() {
     ch.accessor("ot_em2",{ header:"OT Em.2", enableSorting:false, size:82,
       cell:({row})=><EditableCell value={row.original.ot_em2} type="ot" onChange={v=>upd(row.original.id,"ot_em2",v)}/>,
     }),
+    ch.accessor("grupo_id",{
+      header:({column})=><SH col={column} label="Grupo"/>,
+      cell:({row})=><EditableCell value={row.original.grupo_id ?? ""} type="ot" placeholder="G1" align="center" onChange={v=>upd(row.original.id,"grupo_id",v)}/>,
+      size:70,
+    }),
     ch.accessor("hh_normales",{
       header:({column})=><SH col={column} label="HH Nor."/>,
       cell:({row})=><EditableCell value={row.original.hh_normales} type="hora" placeholder="00:00" align="center" onChange={v=>upd(row.original.id,"hh_normales",v)}/>,
@@ -324,6 +329,17 @@ export default function TimeErrorTable() {
       norTotal:fmt(sumMin("hh_normales")), e50Total:fmt(sumMin("hh_50")), e100Total:fmt(sumMin("hh_100")),
     };
   },[rows]);
+
+  const groupCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    data.forEach((r) => {
+      if (r.grupo_id) {
+        map[r.grupo_id] = (map[r.grupo_id] ?? 0) + 1;
+      }
+    });
+    return map;
+  }, [data]);
+
 
   return (
     <div style={{display:"flex",flexDirection:"column",height:"100vh",overflow:"hidden",background:"var(--bg)"}}>
@@ -435,12 +451,36 @@ export default function TimeErrorTable() {
               ))}
             </thead>
             <tbody>
-              {rows.map((row,i)=>(
-                <tr key={row.id} className={`anim${selected.has(row.original.id)?" sel":""}`}
-                  style={{animationDelay:`${Math.min(i*10,180)}ms`, borderLeft:FALTANTES.has(row.original.motivo)?"2px solid var(--amber)":"none"}}>
-                  {row.getVisibleCells().map(cell=><td key={cell.id} style={{width:cell.column.getSize()}}>{flexRender(cell.column.columnDef.cell,cell.getContext())}</td>)}
-                </tr>
-              ))}
+              {rows.map((row,i)=>{
+                const gid = row.original.grupo_id;
+                const isGrouped = !!gid && groupCounts[gid] > 1;
+                const borderLeft = FALTANTES.has(row.original.motivo)
+                  ? "2px solid var(--amber)"
+                  : isGrouped
+                  ? "2px solid rgba(59,130,246,0.8)"
+                  : "none";
+                const bg = isGrouped ? "rgba(59,130,246,0.04)" : "transparent";
+                return (
+                  <tr
+                    key={row.id}
+                    className={`anim${selected.has(row.original.id) ? " sel" : ""}`}
+                    style={{
+                      animationDelay: `${Math.min(i * 10, 180)}ms`,
+                      borderLeft,
+                      background: bg,
+                    }}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
