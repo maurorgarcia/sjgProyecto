@@ -1,75 +1,55 @@
 "use client";
 import { useEffect, useState } from "react";
 import { fetchHistory } from "@/lib/supabase";
-
-interface Props { recordId: string; empleado: string; onClose: () => void; }
-
-const FIELD_LABELS: Record<string, string> = {
-  fecha: "Fecha", contrato: "Contrato", empleado: "Empleado", motivo: "Motivo",
-  sector: "Sector", ot: "OT", ot_em: "OT Em.", ot_em2: "OT Em.2",
-  hh_normales: "HH Normales", hh_50: "HH E.50%", hh_100: "HH E.100%",
-  estado: "Estado", observaciones: "Observaciones", insa: "INSA", polu: "POLU", noct: "NOCT",
+type H = Awaited<ReturnType<typeof fetchHistory>>[0];
+const LABELS: Record<string,string> = {
+  fecha:"Fecha",contrato:"Contrato",empleado:"Empleado",motivo:"Motivo",sector:"Sector",
+  ot:"OT",ot_em:"OT Em.",ot_em2:"OT Em.2",hh_normales:"HH Normales",hh_50:"HH 50%",
+  hh_100:"HH 100%",estado:"Estado",observaciones:"Observaciones",insa:"INSA",polu:"POLU",noct:"NOCT",
 };
+const fmt = (iso:string) => new Date(iso).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"});
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString("es-AR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" });
-}
-
-export default function HistoryModal({ recordId, empleado, onClose }: Props) {
-  const [history, setHistory] = useState<Awaited<ReturnType<typeof fetchHistory>>>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchHistory(recordId).then(h => { setHistory(h); setLoading(false); });
-  }, [recordId]);
-
+export default function HistoryModal({ recordId, empleado, onClose }: { recordId:string; empleado:string; onClose:()=>void }) {
+  const [rows,setRows] = useState<H[]>([]);
+  const [loading,setLoading] = useState(true);
+  useEffect(()=>{ fetchHistory(recordId).then(h=>{ setRows(h); setLoading(false); }); },[recordId]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(13,27,42,0.88)" }}>
-      <div className="fade-in rounded-md shadow-2xl w-full max-w-lg overflow-hidden" style={{ background: "#1a2f47", border: "1px solid #3a5a80" }}>
-        <div className="flex items-center justify-between px-5 py-3.5 border-b" style={{ borderColor: "#2a4060" }}>
+    <div className="overlay">
+      <div className="modal anim" style={{maxWidth:580}}>
+        <div className="modal-head">
           <div>
-            <span className="font-semibold text-sm text-[#e8f0f8]">Historial de cambios</span>
-            <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>{empleado}</p>
+            <p style={{fontWeight:600,fontSize:13,color:"var(--t1)"}}>Historial de cambios</p>
+            <p style={{fontSize:10,color:"var(--t3)",marginTop:2,fontFamily:"'JetBrains Mono',monospace"}}>{empleado}</p>
           </div>
-          <button type="button" onClick={onClose} className="text-[#4a6a8a] hover:text-[#e8f0f8] text-lg leading-none">✕</button>
+          <button onClick={onClose} className="btn btn-ghost" style={{padding:"0 8px"}}>✕</button>
         </div>
-
-        <div className="max-h-96 overflow-y-auto">
-          {loading ? (
-            <div className="flex justify-center py-10">
-              <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
-            </div>
-          ) : history.length === 0 ? (
-            <div className="text-center py-10" style={{ color: "var(--text-muted)", fontSize: 12 }}>
-              Sin cambios registrados
-            </div>
-          ) : (
-            <table className="w-full text-[11px]" style={{ fontFamily: "'DM Mono', monospace" }}>
-              <thead>
-                <tr style={{ background: "var(--bg-elevated)" }}>
-                  <th className="px-4 py-2 text-left font-semibold text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Fecha</th>
-                  <th className="px-4 py-2 text-left font-semibold text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Campo</th>
-                  <th className="px-4 py-2 text-left font-semibold text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Antes</th>
-                  <th className="px-4 py-2 text-left font-semibold text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Después</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((h, i) => (
-                  <tr key={h.id} style={{ background: i % 2 === 0 ? "var(--bg-surface)" : "var(--bg-elevated)" }}>
-                    <td className="px-4 py-2" style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>{fmtDate(h.created_at)}</td>
-                    <td className="px-4 py-2 font-medium" style={{ color: "var(--text-secondary)" }}>{FIELD_LABELS[h.campo] || h.campo}</td>
-                    <td className="px-4 py-2" style={{ color: "#ef4444", textDecoration: "line-through", opacity: 0.7 }}>{h.valor_anterior || "—"}</td>
-                    <td className="px-4 py-2" style={{ color: "#22c55e" }}>{h.valor_nuevo || "—"}</td>
+        <div style={{maxHeight:380,overflowY:"auto"}}>
+          {loading
+            ? <div style={{display:"flex",justifyContent:"center",padding:40}}><div style={{width:24,height:24,borderRadius:"50%",border:"2px solid var(--accent)",borderTopColor:"transparent",animation:"spin 0.8s linear infinite"}}/></div>
+            : rows.length===0
+            ? <div style={{textAlign:"center",padding:40,color:"var(--t3)",fontSize:12}}>Sin cambios registrados</div>
+            : <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                <thead>
+                  <tr style={{background:"var(--bg-row)"}}>
+                    {["Fecha","Campo","Antes","Después"].map(h=>(
+                      <th key={h} style={{padding:"6px 14px",textAlign:"left",fontSize:9,fontWeight:600,letterSpacing:"0.07em",textTransform:"uppercase",color:"var(--t3)",borderBottom:"1px solid var(--border)"}}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  {rows.map((h,i)=>(
+                    <tr key={h.id} style={{background:i%2===0?"var(--bg-card)":"var(--bg-row)"}}>
+                      <td style={{padding:"6px 14px",color:"var(--t3)",whiteSpace:"nowrap",fontFamily:"'JetBrains Mono',monospace"}}>{fmt(h.created_at)}</td>
+                      <td style={{padding:"6px 14px",fontWeight:500,color:"var(--t2)"}}>{LABELS[h.campo]||h.campo}</td>
+                      <td style={{padding:"6px 14px",color:"#f87171",textDecoration:"line-through",opacity:0.7}}>{h.valor_anterior||"—"}</td>
+                      <td style={{padding:"6px 14px",color:"#4ade80"}}>{h.valor_nuevo||"—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+          }
         </div>
-
-        <div className="px-5 py-3 border-t flex justify-end" style={{ borderColor: "#2a4060" }}>
-          <button className="btn btn-ghost" onClick={onClose}>Cerrar</button>
-        </div>
+        <div className="modal-foot"><button className="btn btn-ghost" onClick={onClose}>Cerrar</button></div>
       </div>
     </div>
   );

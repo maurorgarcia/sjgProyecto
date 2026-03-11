@@ -20,9 +20,11 @@ export default function Home() {
 
   if (!checked) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ background: "var(--bg-base)" }}>
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-          style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
+      <div className="flex items-center justify-center min-h-screen" style={{ background: "var(--bg)" }}>
+        <div
+          className="rounded-full border-2 border-[var(--accent)] border-t-transparent"
+          style={{ width: 32, height: 32, animation: "spin 0.8s linear infinite" }}
+        />
       </div>
     );
   }

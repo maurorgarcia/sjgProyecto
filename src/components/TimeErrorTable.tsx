@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel,
   flexRender, createColumnHelper, type ColumnDef, type FilterFn, type SortingState } from "@tanstack/react-table";
 import toast from "react-hot-toast";
@@ -13,174 +14,138 @@ import ExportExcel from "./ExportExcel";
 import AddRowModal from "./AddRowModal";
 import HistoryModal from "./HistoryModal";
 import ComplementEditor from "./ComplementEditor";
+import Header from "./Header";
+import Footer from "./Footer";
+import { SelectDropdown } from "./SelectDropdown";
 
-export const MOTIVOS = [
-  "Par de fichada incompleto",
-  "Omisión",
-  "Saldo Insuficiente",
-  "OT inexistente",
-  "Falta parte",
-  "Falta cargar",
-];
+const MOTIVOS   = ["Par de fichada incompleto","Omisión","Saldo Insuficiente","OT inexistente","Falta parte","Falta cargar"];
+const CONTRATOS = ["6700248017","6700302926"];
+const SECTORES  = ["Mecánica","Eléctrica","Instrumentos","Civil","Aislación","Pintura","Andamios","Pañol/Logística","Coordinación","Puesto Fijo","RRHH","Administración"];
+const FALTANTES = new Set(["Falta parte","Falta cargar"]);
 
-export const SECTORES = [
-  "Mecánica",
-  "Eléctrica",
-  "Instrumentos",
-  "Civil",
-  "Aislación",
-  "Pintura",
-  "Andamios",
-  "Pañol/Logística",
-  "Coordinación",
-  "Puesto Fijo",
-  "RRHH",
-  "Administración",
-];
-
-const FALTANTE_MOTIVOS = ["Falta parte", "Falta cargar"];
-export const CONTRATOS = ["6700248017","6700302926"];
-
-function diaES(fecha: string) {
-  if (!fecha) return "—";
-  const d = new Date(fecha + "T12:00:00");
-  const n = d.toLocaleDateString("es-AR", { weekday: "long" });
-  return n.charAt(0).toUpperCase() + n.slice(1, 3);
+function diaES(fecha:string) {
+  if(!fecha) return "—";
+  const d = new Date(fecha+"T12:00:00");
+  const n = d.toLocaleDateString("es-AR",{weekday:"long"});
+  return n.charAt(0).toUpperCase()+n.slice(1,3);
 }
 
-function toHHMM(v: string) {
-  return (!v || v === "00:00") ? "—" : v;
+function SortIcon({dir}:{dir:"asc"|"desc"|false}) {
+  if(!dir) return <svg width="8" height="10" viewBox="0 0 8 10" fill="currentColor" style={{opacity:0.2}}><path d="M4 0L8 4H0z"/><path d="M4 10L0 6h8z"/></svg>;
+  return <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor" style={{color:"var(--accent)",transform:dir==="desc"?"rotate(180deg)":"none"}}><path d="M4 0L8 5H0z"/></svg>;
 }
-
-function SortIcon({ dir }: { dir: "asc"|"desc"|false }) {
-  if (!dir) return <svg width="8" height="10" viewBox="0 0 8 10" fill="currentColor" style={{ opacity: 0.2 }}><path d="M4 0L8 4H0z"/><path d="M4 10L0 6h8z"/></svg>;
-  return <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor" style={{ color: "var(--accent)", transform: dir==="desc"?"rotate(180deg)":"none" }}><path d="M4 0L8 5H0z"/></svg>;
-}
-
-function SH({ col, label }: { col: { getToggleSortingHandler:()=>((e:unknown)=>void)|undefined; getIsSorted:()=>"asc"|"desc"|false; getCanSort:()=>boolean }; label: string }) {
+function SH({col,label}:{col:any;label:string}) {
   return col.getCanSort()
-    ? <div onClick={col.getToggleSortingHandler()} className="flex items-center gap-1 cursor-pointer select-none w-full whitespace-nowrap">{label}<SortIcon dir={col.getIsSorted()} /></div>
-    : <span className="whitespace-nowrap">{label}</span>;
+    ? <div onClick={col.getToggleSortingHandler()} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none",whiteSpace:"nowrap"}}>{label}<SortIcon dir={col.getIsSorted()}/></div>
+    : <span style={{whiteSpace:"nowrap"}}>{label}</span>;
 }
 
-const FALTANTE_MOTIVOS_SET = new Set(["Falta parte", "Falta cargar"]);
-
-const gff: FilterFn<TimeError> = (row, _, f: FilterState) => {
-  if (f.fecha && row.original.fecha !== f.fecha) return false;
-  if (f.estado && row.original.estado !== f.estado) return false;
-  if (f.sector && !row.original.sector?.toLowerCase().includes(f.sector.toLowerCase())) return false;
-  if (f.motivo && row.original.motivo !== f.motivo) return false;
-  if (f.search && !row.original.empleado?.toLowerCase().includes(f.search.toLowerCase())) return false;
-  if (f.soloFaltantes && !FALTANTE_MOTIVOS_SET.has(row.original.motivo)) return false;
+const gff: FilterFn<TimeError> = (row,_,f:FilterState) => {
+  if(f.fecha&&row.original.fecha!==f.fecha) return false;
+  if(f.estado&&row.original.estado!==f.estado) return false;
+  if(f.sector&&!row.original.sector?.toLowerCase().includes(f.sector.toLowerCase())) return false;
+  if(f.motivo&&row.original.motivo!==f.motivo) return false;
+  if(f.search&&!row.original.empleado?.toLowerCase().includes(f.search.toLowerCase())) return false;
+  if(f.soloFaltantes&&!FALTANTES.has(row.original.motivo)) return false;
   return true;
 };
 
-const ch = createColumnHelper<TimeError>();
-
-// ─── Mobile card ─────────────────────────────────────────────
-function MobileCard({
-  row, onUpdate, onDuplicate, onDelete, onHistory,
-}: {
-  row: TimeError;
-  onUpdate: (id: string, f: keyof TimeError, v: unknown) => void;
-  onDuplicate: (r: TimeError) => void;
-  onDelete: (id: string) => void;
-  onHistory: (r: TimeError) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const statusColor: Record<Estado, string> = {
-    "Pendiente": "border-l-amber-500",
-    "En revisión": "border-l-blue-400",
-    "Corregido": "border-l-green-400",
+// ── Sector cell with autocomplete ──
+function SectorCell({value,onChange}:{value:string;onChange:(v:string)=>void}) {
+  const [editing,setEditing] = useState(false);
+  const [local,setLocal]     = useState(value);
+  const [flash,setFlash]     = useState(false);
+  const ref                  = useRef<HTMLInputElement>(null);
+  useEffect(()=>setLocal(value),[value]);
+  useEffect(()=>{ if(editing&&ref.current){ref.current.focus();ref.current.select();} },[editing]);
+  const commit = ()=>{
+    setEditing(false);
+    if(local!==value){onChange(local);setFlash(true);setTimeout(()=>setFlash(false),700);}
   };
-
+  const suggs = SECTORES.filter(s=>local.trim()&&s.toLowerCase().includes(local.toLowerCase())&&s.toLowerCase()!==local.toLowerCase()).slice(0,5);
+  if(editing) return (
+    <div style={{position:"relative",width:"100%",height:"100%"}}>
+      <input ref={ref} value={local} onChange={e=>setLocal(e.target.value)}
+        onBlur={()=>setTimeout(commit,120)}
+        onKeyDown={e=>{ if(e.key==="Enter"||e.key==="Tab"){e.preventDefault();commit();} if(e.key==="Escape"){setLocal(value);setEditing(false);} }}
+        className="cell-in" placeholder="Sector…" autoComplete="off"/>
+      {suggs.length>0&&(
+        <div style={{position:"absolute",top:"100%",left:0,zIndex:50,width:"100%",background:"var(--bg-card)",border:"1px solid var(--border-hi)",borderTop:"none",borderRadius:"0 0 6px 6px",overflow:"hidden"}}>
+          {suggs.map(s=>(
+            <div key={s} onMouseDown={()=>{setLocal(s);setTimeout(commit,50);}}
+              style={{padding:"6px 10px",fontSize:11,cursor:"pointer",color:"var(--t1)",fontFamily:"'JetBrains Mono',monospace"}}
+              onMouseEnter={e=>(e.currentTarget.style.background="var(--bg-hover)")}
+              onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>{s}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
   return (
-    <div className={`rounded-md mb-2 border-l-4 ${statusColor[row.estado as Estado] || "border-l-gray-600"}`}
-      style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderLeftWidth: 4 }}>
-      {/* Main row */}
-      <div className="p-3">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>{row.empleado || "—"}</p>
-            <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
-              {row.fecha} · {diaES(row.fecha)} · {row.contrato || "—"}
-            </p>
+    <div onClick={()=>setEditing(true)}
+      style={{width:"100%",height:"100%",minHeight:36,padding:"0 10px",display:"flex",alignItems:"center",cursor:"text",userSelect:"none",background:flash?"rgba(74,222,128,0.08)":"transparent",transition:flash?"none":"background 0.6s"}}>
+      {value?<span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--t1)",fontSize:12,fontFamily:"'JetBrains Mono',monospace"}}>{value}</span>
+            :<span style={{color:"var(--t3)",fontSize:11}}>—</span>}
+    </div>
+  );
+}
+
+// ── Mobile Card ──
+function MobileCard({row,onUpdate,onDuplicate,onDelete,onHistory}:{row:TimeError;onUpdate:(id:string,f:keyof TimeError,v:unknown)=>void;onDuplicate:(r:TimeError)=>void;onDelete:(id:string)=>void;onHistory:(r:TimeError)=>void}) {
+  const [exp,setExp] = useState(false);
+  const borderColor = row.estado==="Corregido"?"var(--green)":row.estado==="En revisión"?"#6366f1":"var(--amber)";
+  return (
+    <div style={{background:"var(--bg-card)",border:"1px solid var(--border-hi)",borderLeft:`3px solid ${borderColor}`,borderRadius:10,marginBottom:8,overflow:"hidden",boxShadow:"0 2px 12px rgba(0,0,0,0.4)"}}>
+      <div style={{padding:12}}>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:8}}>
+          <div style={{minWidth:0,flex:1}}>
+            <p style={{fontWeight:600,fontSize:13,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.empleado||"—"}</p>
+            <p style={{fontSize:10,color:"var(--t3)",marginTop:2,fontFamily:"'JetBrains Mono',monospace"}}>{row.fecha} · {diaES(row.fecha)} · {row.contrato||"—"}</p>
           </div>
-          <StatusBadge value={row.estado as Estado} onChange={(v) => onUpdate(row.id, "estado", v)} />
+          <StatusBadge value={row.estado as Estado} onChange={v=>onUpdate(row.id,"estado",v)}/>
         </div>
-
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {row.motivo && <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>{row.motivo}</span>}
-          {row.sector && <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>{row.sector}</span>}
-          {row.ot && <span className="text-[10px] px-2 py-0.5 rounded font-mono" style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>{row.ot}</span>}
+        <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>
+          {row.motivo&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:99,background:"var(--bg-row)",color:"var(--t2)",border:"1px solid var(--border)"}}>{row.motivo}</span>}
+          {row.sector&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:99,background:"var(--bg-row)",color:"var(--t2)",border:"1px solid var(--border)"}}>{row.sector}</span>}
         </div>
-
-        {/* Hours summary */}
-        <div className="flex gap-3 text-[11px]" style={{ fontFamily: "'DM Mono', monospace" }}>
-          {row.hh_normales !== "00:00" && <span style={{ color: "var(--text-secondary)" }}>Nor: <strong style={{ color: "var(--text-primary)" }}>{row.hh_normales}</strong></span>}
-          {row.hh_50 !== "00:00" && <span style={{ color: "var(--text-secondary)" }}>50%: <strong style={{ color: "var(--text-primary)" }}>{row.hh_50}</strong></span>}
-          {row.hh_100 !== "00:00" && <span style={{ color: "var(--text-secondary)" }}>100%: <strong style={{ color: "var(--text-primary)" }}>{row.hh_100}</strong></span>}
+        <div style={{display:"flex",gap:12,fontSize:11,fontFamily:"'JetBrains Mono',monospace"}}>
+          {row.hh_normales!=="00:00"&&<span style={{color:"var(--t3)"}}>Nor: <strong style={{color:"var(--t1)"}}>{row.hh_normales}</strong></span>}
+          {row.hh_50!=="00:00"&&<span style={{color:"var(--t3)"}}>50%: <strong style={{color:"var(--t1)"}}>{row.hh_50}</strong></span>}
+          {row.hh_100!=="00:00"&&<span style={{color:"var(--t3)"}}>100%: <strong style={{color:"var(--t1)"}}>{row.hh_100}</strong></span>}
         </div>
-
-        {/* Complements */}
-        {(row.insa !== "00:00" || row.polu !== "00:00" || row.noct !== "00:00") && (
-          <div className="flex gap-1.5 mt-2 flex-wrap">
-            {row.insa !== "00:00" && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" }}>INSA {row.insa}</span>}
-            {row.polu !== "00:00" && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.25)" }}>POLU {row.polu}</span>}
-            {row.noct !== "00:00" && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.25)" }}>NOCT {row.noct}</span>}
-          </div>
-        )}
-
-        {row.observaciones && (
-          <p className="text-[11px] mt-2 italic" style={{ color: "var(--text-muted)" }}>"{row.observaciones}"</p>
-        )}
-
-        {/* Actions row */}
-        <div className="flex items-center gap-2 mt-3 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
-          <button onClick={() => setExpanded(e => !e)} className="text-[10px] font-semibold" style={{ color: "var(--text-muted)" }}>
-            {expanded ? "▲ Cerrar" : "▼ Editar"}
-          </button>
-          <div className="flex-1" />
-          <button onClick={() => onHistory(row)} className="text-[10px] px-2 py-1 rounded" style={{ color: "var(--text-muted)", background: "var(--bg-elevated)" }} title="Historial">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          </button>
-          <button onClick={() => onDuplicate(row)} className="text-[10px] px-2 py-1 rounded" style={{ color: "var(--text-muted)", background: "var(--bg-elevated)" }} title="Duplicar">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          </button>
-          <button onClick={() => { if (confirm("¿Eliminar?")) onDelete(row.id); }}
-            className="text-[10px] px-2 py-1 rounded" style={{ color: "#ef4444", background: "rgba(239,68,68,0.1)" }} title="Eliminar">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-          </button>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,paddingTop:8,borderTop:"1px solid var(--border)"}}>
+          <button onClick={()=>setExp(e=>!e)} style={{fontSize:10,fontWeight:600,color:"var(--t3)",background:"none",border:"none",cursor:"pointer"}}>{exp?"▲ Cerrar":"▼ Editar"}</button>
+          <div style={{flex:1}}/>
+          {[
+            {icon:<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,title:"Historial",fn:()=>onHistory(row),color:"var(--t3)"},
+            {icon:<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,title:"Duplicar",fn:()=>onDuplicate(row),color:"var(--t3)"},
+            {icon:<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>,title:"Eliminar",fn:()=>{if(confirm("¿Eliminar?"))onDelete(row.id);},color:"#f87171"},
+          ].map((a,i)=>(
+            <button key={i} onClick={a.fn} title={a.title}
+              style={{width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6,background:"var(--bg-row)",border:"1px solid var(--border)",cursor:"pointer",color:a.color}}>
+              {a.icon}
+            </button>
+          ))}
         </div>
       </div>
-
-      {/* Expanded edit */}
-      {expanded && (
-        <div className="px-3 pb-3 border-t grid grid-cols-2 gap-2" style={{ borderColor: "var(--border)" }}>
+      {exp&&(
+        <div style={{padding:"12px",borderTop:"1px solid var(--border)",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           {[
-            { label: "Sector", field: "sector" as keyof TimeError, val: row.sector },
-            { label: "OT", field: "ot" as keyof TimeError, val: row.ot },
-            { label: "OT Em.", field: "ot_em" as keyof TimeError, val: row.ot_em },
-            { label: "OT Em.2", field: "ot_em2" as keyof TimeError, val: row.ot_em2 },
-            { label: "HH Nor.", field: "hh_normales" as keyof TimeError, val: row.hh_normales },
-            { label: "HH 50%", field: "hh_50" as keyof TimeError, val: row.hh_50 },
-            { label: "HH 100%", field: "hh_100" as keyof TimeError, val: row.hh_100 },
-            { label: "INSA", field: "insa" as keyof TimeError, val: row.insa },
-            { label: "POLU", field: "polu" as keyof TimeError, val: row.polu },
-            { label: "NOCT", field: "noct" as keyof TimeError, val: row.noct },
-          ].map(({ label, field, val }) => (
-            <div key={field} className="mt-2">
-              <label className="block text-[9px] font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>{label}</label>
-              <input type="text" defaultValue={String(val ?? "")}
-                onBlur={e => onUpdate(row.id, field, e.target.value)}
-                className="w-full bg-transparent border border-[#2a4060] rounded px-2 py-1 text-[11px] text-[#e8f0f8] outline-none focus:border-[#f59e0b]" />
+            {label:"Sector",field:"sector"},{label:"OT",field:"ot"},{label:"OT Em.",field:"ot_em"},
+            {label:"HH Nor.",field:"hh_normales"},{label:"HH 50%",field:"hh_50"},{label:"HH 100%",field:"hh_100"},
+            {label:"INSA",field:"insa"},{label:"POLU",field:"polu"},{label:"NOCT",field:"noct"},
+          ].map(({label,field})=>(
+            <div key={field}>
+              <label style={{display:"block",fontSize:9,fontWeight:600,letterSpacing:"0.07em",textTransform:"uppercase",color:"var(--t3)",marginBottom:4}}>{label}</label>
+              <input type="text" defaultValue={String((row as unknown as Record<string,unknown>)[field]??"")}
+                onBlur={e=>onUpdate(row.id,field as keyof TimeError,e.target.value)}
+                className="form-input" style={{height:30,fontSize:11}}/>
             </div>
           ))}
-          <div className="col-span-2 mt-2">
-            <label className="block text-[9px] font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>Observaciones</label>
-            <textarea defaultValue={row.observaciones || ""}
-              onBlur={e => onUpdate(row.id, "observaciones", e.target.value)} rows={2}
-              className="w-full bg-transparent border border-[#2a4060] rounded px-2 py-1 text-[11px] text-[#e8f0f8] outline-none focus:border-[#f59e0b] resize-none" />
+          <div style={{gridColumn:"1/-1"}}>
+            <label style={{display:"block",fontSize:9,fontWeight:600,letterSpacing:"0.07em",textTransform:"uppercase",color:"var(--t3)",marginBottom:4}}>Observaciones</label>
+            <textarea defaultValue={row.observaciones||""} onBlur={e=>onUpdate(row.id,"observaciones",e.target.value)}
+              rows={2} className="form-input" style={{height:"auto",paddingTop:6,resize:"none"}}/>
           </div>
         </div>
       )}
@@ -188,480 +153,292 @@ function MobileCard({
   );
 }
 
+// ── Main ──
+const ch = createColumnHelper<TimeError>();
 
-// ─── SectorCell — editable con sugerencias ───────────────────
-function SectorCell({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [local, setLocal]     = useState(value);
-  const [flash, setFlash]     = useState(false);
-  const inputRef              = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { setLocal(value); }, [value]);
-  useEffect(() => { if (editing && inputRef.current) { inputRef.current.focus(); inputRef.current.select(); } }, [editing]);
-
-  const commit = () => {
-    setEditing(false);
-    if (local !== value) {
-      onChange(local);
-      setFlash(true);
-      setTimeout(() => setFlash(false), 800);
-    }
-  };
-
-  const suggestions = SECTORES.filter(s =>
-    local.trim() && s.toLowerCase().includes(local.toLowerCase()) && s.toLowerCase() !== local.toLowerCase()
-  ).slice(0, 5);
-
-  if (editing) {
-    return (
-      <div className="relative w-full h-full">
-        <input ref={inputRef} value={local} list="sector-list"
-          onChange={e => setLocal(e.target.value)}
-          onBlur={() => setTimeout(commit, 120)}
-          onKeyDown={e => { if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); commit(); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }}
-          className="cell-input"
-          placeholder="Escribir o seleccionar…"
-          style={{ background: "rgba(245,158,11,0.08)", boxShadow: "inset 0 0 0 1.5px var(--accent)" }}
-        />
-        {suggestions.length > 0 && (
-          <div className="absolute top-full left-0 z-50 w-full shadow-xl rounded-b-md overflow-hidden"
-            style={{ background: "#1a2f47", border: "1px solid #3a5a80", borderTop: "none" }}>
-            {suggestions.map(s => (
-              <div key={s} onMouseDown={() => { setLocal(s); setTimeout(commit, 50); }}
-                className="px-3 py-1.5 cursor-pointer text-[11px] hover:bg-[#203a58]"
-                style={{ color: "var(--text-primary)", fontFamily: "'DM Mono', monospace" }}>
-                {s}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div onClick={() => setEditing(true)} className="w-full h-full px-2.5 flex items-center cursor-text select-none"
-      style={{
-        color: value ? "var(--text-primary)" : "var(--text-muted)",
-        background: flash ? "rgba(34,197,94,0.1)" : "transparent",
-        transition: "background 0.6s",
-        minHeight: 34,
-      }}>
-      {value ? <span className="truncate text-[11.5px]" style={{ fontFamily: "'DM Mono', monospace" }}>{value}</span>
-             : <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>—</span>}
-    </div>
-  );
-}
-
-// ─── Main component ───────────────────────────────────────────
 export default function TimeErrorTable() {
-  const [data, setData]                 = useState<TimeError[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [historyRow, setHistoryRow]     = useState<TimeError | null>(null);
-  const [isMobile, setIsMobile]         = useState(false);
-  const [sorting, setSorting]           = useState<SortingState>([{ id: "fecha", desc: true }]);
-  const [filters, setFilters]           = useState<FilterState>({
-    fecha: new Date().toISOString().slice(0, 10),
-    estado: "", sector: "", motivo: "", search: "", soloFaltantes: false,
+  const router = useRouter();
+  const [data,setData]           = useState<TimeError[]>([]);
+  const [loading,setLoading]     = useState(true);
+  const [selected,setSelected]   = useState<Set<string>>(new Set());
+  const [addModal,setAddModal]   = useState(false);
+  const [histRow,setHistRow]     = useState<TimeError|null>(null);
+  const [isMobile,setIsMobile]   = useState(false);
+  const [sorting,setSorting]     = useState<SortingState>([{id:"fecha",desc:true}]);
+  const [filters,setFilters]     = useState<FilterState>({
+    fecha:new Date().toISOString().slice(0,10), estado:"", sector:"", motivo:"", search:"", soloFaltantes:false,
   });
 
-  // Detect mobile
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
+  useEffect(()=>{ const chk=()=>setIsMobile(window.innerWidth<768); chk(); window.addEventListener("resize",chk); return ()=>window.removeEventListener("resize",chk); },[]);
 
-  // Load + realtime
-  const load = useCallback(async () => {
+  const load = useCallback(async()=>{
     setLoading(true);
-    try { setData(await fetchTimeErrors()); }
-    catch { toast.error("Error al cargar datos"); }
-    finally { setLoading(false); }
-  }, []);
+    try{ setData(await fetchTimeErrors()); }
+    catch{ toast.error("Error al cargar datos"); }
+    finally{ setLoading(false); }
+  },[]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(()=>{ load(); },[load]);
 
-  useEffect(() => {
-    const ch = supabase.channel("te_rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "time_errors" }, (p) => {
-        if (p.eventType === "INSERT") setData(d => [p.new as TimeError, ...d]);
-        else if (p.eventType === "UPDATE") setData(d => d.map(r => r.id === (p.new as TimeError).id ? p.new as TimeError : r));
-        else if (p.eventType === "DELETE") setData(d => d.filter(r => r.id !== (p.old as TimeError).id));
+  useEffect(()=>{
+    const ch = supabase.channel("te_rt2")
+      .on("postgres_changes",{event:"*",schema:"public",table:"time_errors"},(p)=>{
+        if(p.eventType==="INSERT") setData(d=>[p.new as TimeError,...d]);
+        else if(p.eventType==="UPDATE") setData(d=>d.map(r=>r.id===(p.new as TimeError).id?p.new as TimeError:r));
+        else if(p.eventType==="DELETE") setData(d=>d.filter(r=>r.id!==(p.old as TimeError).id));
       }).subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, []);
+    return ()=>{ supabase.removeChannel(ch); };
+  },[]);
 
-  // Handlers
-  const handleUpdate = useCallback(async (id: string, field: keyof TimeError, value: unknown) => {
-    const prev = data.find(r => r.id === id);
-    setData(d => d.map(r => r.id === id ? { ...r, [field]: value } : r));
-    try { await updateTimeError(id, { [field]: value } as Partial<TimeError>, prev ? { [field]: (prev as Record<string, unknown>)[field as string] } : undefined); }
-    catch { toast.error("Error al guardar"); load(); }
-  }, [data, load]);
+  const upd = useCallback(async(id:string,field:keyof TimeError,value:unknown)=>{
+    const prev = data.find(r=>r.id===id);
+    setData(d=>d.map(r=>r.id===id?{...r,[field]:value}:r));
+    try{ await updateTimeError(id,{[field]:value} as Partial<TimeError>,prev?{[field]:(prev as unknown as Record<string,unknown>)[field as string]}:undefined); }
+    catch{ toast.error("Error al guardar"); load(); }
+  },[data,load]);
 
-  const handleAdd = useCallback(async (row: Omit<TimeError,"id"|"created_at"|"updated_at"|"dia">) => {
-    try { await insertTimeError(row); toast.success("Registro agregado"); }
-    catch { toast.error("Error al agregar"); }
-  }, []);
-
-  const handleDuplicate = useCallback(async (row: TimeError) => {
-    try { await duplicateTimeError(row); toast.success("Registro duplicado"); }
-    catch { toast.error("Error al duplicar"); }
-  }, []);
-
-  const handleDelete = useCallback(async (id: string) => {
-    try { await deleteTimeError(id); toast.success("Eliminado"); }
-    catch { toast.error("Error al eliminar"); }
-  }, []);
-
-  const handleDeleteSelected = useCallback(async () => {
-    if (!selectedRows.size) return;
-    if (!confirm(`¿Eliminar ${selectedRows.size} registro(s)?`)) return;
-    try {
-      await Promise.all([...selectedRows].map(handleDelete));
-      setSelectedRows(new Set());
-    } catch { toast.error("Error al eliminar"); }
-  }, [selectedRows, handleDelete]);
-
-  const handleImport = useCallback(async (rows: Omit<TimeError,"id"|"created_at"|"updated_at"|"dia">[]) => {
-    await bulkInsertTimeErrors(rows);
-  }, []);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+  const handleAdd     = useCallback(async(row:Omit<TimeError,"id"|"created_at"|"updated_at"|"dia">)=>{ try{await insertTimeError(row);toast.success("Registro agregado");}catch{toast.error("Error al agregar");} },[]);
+  const handleDup     = useCallback(async(row:TimeError)=>{ try{await duplicateTimeError(row);toast.success("Registro duplicado");}catch{toast.error("Error al duplicar");} },[]);
+  const handleDel     = useCallback(async(id:string)=>{ try{await deleteTimeError(id);}catch{toast.error("Error al eliminar");} },[]);
+  const handleDelSel  = useCallback(async()=>{ if(!selected.size||!confirm(`¿Eliminar ${selected.size} registro(s)?`)) return; await Promise.all(Array.from(selected).map(handleDel)); setSelected(new Set()); },[selected,handleDel]);
+  const handleImport  = useCallback(async(rows:Omit<TimeError,"id"|"created_at"|"updated_at"|"dia">[])=>{ await bulkInsertTimeErrors(rows); },[]);
+  const handleLogout  = async()=>{ 
+    await supabase.auth.signOut(); 
+    toast.success("Sesión cerrada correctamente");
+    router.replace("/login"); 
   };
 
-  const setFilter = (k: keyof FilterState, v: string) => setFilters(f => ({ ...f, [k]: v }));
-  const hasActiveFilters = !!(filters.search || filters.estado || filters.sector || filters.motivo || filters.soloFaltantes);
+  const setF = (k:keyof FilterState,v:unknown)=>setFilters(f=>({...f,[k]:v}));
+  const hasFilter = !!(filters.search||filters.estado||filters.sector||filters.motivo||filters.soloFaltantes);
 
-  // Columns
-  const selectCell = "w-full h-full bg-transparent border-none outline-none px-2.5 text-[11.5px] cursor-pointer";
-  const columns = useMemo<ColumnDef<TimeError, unknown>[]>(() => [
-    {
-      id: "select", enableSorting: false,
-      header: () => <input type="checkbox" className="accent-amber-500 cursor-pointer"
-        checked={selectedRows.size === data.length && data.length > 0}
-        onChange={e => e.target.checked ? setSelectedRows(new Set(data.map(r => r.id))) : setSelectedRows(new Set())} />,
-      cell: ({ row }) => (
-        <div className="flex items-center justify-center h-full">
-          <input type="checkbox" className="accent-amber-500 cursor-pointer"
-            checked={selectedRows.has(row.original.id)}
-            onChange={e => setSelectedRows(prev => { const n = new Set(prev); e.target.checked ? n.add(row.original.id) : n.delete(row.original.id); return n; })} />
-        </div>
-      ), size: 36,
+  const SC = "width:100%;height:100%;background:transparent;border:none;outline:none;padding:0 10px;font-size:12px;color:var(--t1);font-family:'Inter',sans-serif;cursor:pointer;";
+
+  const columns = useMemo<ColumnDef<TimeError,any>[]>(()=>[
+    { id:"sel", enableSorting:false, size:36,
+      header:()=><input type="checkbox" style={{accentColor:"var(--accent)",cursor:"pointer"}} checked={selected.size===data.length&&data.length>0} onChange={e=>e.target.checked?setSelected(new Set(data.map(r=>r.id))):setSelected(new Set())}/>,
+      cell:({row})=><div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%"}}><input type="checkbox" style={{accentColor:"var(--accent)",cursor:"pointer"}} checked={selected.has(row.original.id)} onChange={e=>setSelected(prev=>{const n=new Set(prev);e.target.checked?n.add(row.original.id):n.delete(row.original.id);return n;})}/></div>,
     },
-    ch.accessor("fecha", {
-      header: ({ column }) => <SH col={column} label="Fecha" />,
-      cell: ({ row }) => <EditableCell value={row.original.fecha} type="date" onChange={v => handleUpdate(row.original.id, "fecha", v)} />,
-      size: 116, sortingFn: "alphanumeric",
+    ch.accessor("fecha",{
+      header:({column})=><SH col={column} label="Fecha"/>,
+      cell:({row})=><EditableCell value={row.original.fecha} type="date" onChange={v=>upd(row.original.id,"fecha",v)}/>,
+      size:116, sortingFn:"alphanumeric",
     }),
-    { id: "dia", header: "Día", enableSorting: false,
-      cell: ({ row }) => <div className="px-2 text-center text-[11px] font-medium" style={{ color: "var(--text-secondary)", fontFamily:"'DM Mono',monospace" }}>{diaES(row.original.fecha)}</div>,
-      size: 44 },
-    ch.accessor("contrato", {
-      header: ({ column }) => <SH col={column} label="Contrato" />,
-      cell: ({ row }) => (
-        <select value={row.original.contrato} onChange={e => handleUpdate(row.original.id, "contrato", e.target.value)}
-          className={selectCell} style={{ color: row.original.contrato ? "var(--text-primary)" : "var(--text-muted)", fontFamily:"'DM Mono',monospace" }}>
-          <option value="" style={{ background:"#1a2f47" }}>—</option>
-          {CONTRATOS.map(c => <option key={c} value={c} style={{ background:"#1a2f47" }}>{c}</option>)}
-        </select>
-      ), size: 116,
-    }),
-    ch.accessor("empleado", {
-      header: ({ column }) => <SH col={column} label="Apellido y Nombre" />,
-      cell: ({ row }) => <EditableCell value={row.original.empleado} placeholder="García, Juan" onChange={v => handleUpdate(row.original.id, "empleado", v)} />,
-      size: 182,
-    }),
-    ch.accessor("motivo", {
-      header: ({ column }) => <SH col={column} label="Motivo" />,
-      cell: ({ row }) => (
-        <select value={row.original.motivo} onChange={e => handleUpdate(row.original.id, "motivo", e.target.value)}
-          className={selectCell} style={{ color: row.original.motivo ? "var(--text-primary)" : "var(--text-muted)", fontFamily:"'DM Mono',monospace" }}>
-          <option value="" style={{ background:"#1a2f47" }}>— Seleccionar —</option>
-          {MOTIVOS.map(m => <option key={m} value={m} style={{ background:"#1a2f47" }}>{m}</option>)}
-        </select>
-      ), size: 195,
-    }),
-    ch.accessor("sector", {
-      header: ({ column }) => <SH col={column} label="Área / Sector" />,
-      cell: ({ row }) => (
-        <SectorCell
-          value={row.original.sector}
-          onChange={v => handleUpdate(row.original.id, "sector", v)}
-        />
-      ),
-      size: 148,
-    }),
-    ch.accessor("ot", {
-      header: ({ column }) => <SH col={column} label="OT" />,
-      cell: ({ row }) => <EditableCell value={row.original.ot} placeholder="OT-XXXX" onChange={v => handleUpdate(row.original.id, "ot", v)} />,
-      size: 105,
-    }),
-    ch.accessor("ot_em", { header: "OT Em.", enableSorting: false,
-      cell: ({ row }) => <EditableCell value={row.original.ot_em} onChange={v => handleUpdate(row.original.id, "ot_em", v)} />, size: 86 }),
-    ch.accessor("ot_em2", { header: "OT Em.2", enableSorting: false,
-      cell: ({ row }) => <EditableCell value={row.original.ot_em2} onChange={v => handleUpdate(row.original.id, "ot_em2", v)} />, size: 86 }),
-    ch.accessor("hh_normales", {
-      header: ({ column }) => <SH col={column} label="HH Nor." />,
-      cell: ({ row }) => <EditableCell value={row.original.hh_normales} placeholder="00:00" align="center" onChange={v => handleUpdate(row.original.id, "hh_normales", v)} />, size: 74 }),
-    ch.accessor("hh_50", {
-      header: ({ column }) => <SH col={column} label="HH 50%" />,
-      cell: ({ row }) => <EditableCell value={row.original.hh_50} placeholder="00:00" align="center" onChange={v => handleUpdate(row.original.id, "hh_50", v)} />, size: 72 }),
-    ch.accessor("hh_100", {
-      header: ({ column }) => <SH col={column} label="HH 100%" />,
-      cell: ({ row }) => <EditableCell value={row.original.hh_100} placeholder="00:00" align="center" onChange={v => handleUpdate(row.original.id, "hh_100", v)} />, size: 76 }),
-    {
-      id: "complements", header: "Complementos", enableSorting: false,
-      cell: ({ row }) => (
-        <ComplementEditor row={row.original}
-          onSave={vals => { handleUpdate(row.original.id, "insa", vals.insa); handleUpdate(row.original.id, "polu", vals.polu); handleUpdate(row.original.id, "noct", vals.noct); }} />
-      ), size: 155,
+    { id:"dia", header:"Día", enableSorting:false, size:40,
+      cell:({row})=><div style={{padding:"0 8px",textAlign:"center",fontSize:11,fontWeight:500,color:"var(--t3)",fontFamily:"'JetBrains Mono',monospace"}}>{diaES(row.original.fecha)}</div>,
     },
-    ch.accessor("estado", {
-      header: ({ column }) => <SH col={column} label="Estado" />,
-      cell: ({ row }) => (
-        <div className="flex items-center justify-center h-full px-2">
-          <StatusBadge value={row.original.estado as Estado} onChange={v => handleUpdate(row.original.id, "estado", v)} />
-        </div>
-      ), size: 126,
+    ch.accessor("contrato",{
+      header:({column})=><SH col={column} label="Contrato"/>,
+      cell:({row})=><select value={row.original.contrato} onChange={e=>upd(row.original.id,"contrato",e.target.value)} style={{width:"100%",height:"100%",background:"transparent",border:"none",outline:"none",padding:"0 10px",fontSize:11,color:row.original.contrato?"var(--t1)":"var(--t3)",fontFamily:"'JetBrains Mono',monospace",cursor:"pointer"}}>
+        <option value="">—</option>
+        {CONTRATOS.map(c=><option key={c} value={c}>{c}</option>)}
+      </select>,
+      size:116,
     }),
-    ch.accessor("observaciones", { header: "Observaciones", enableSorting: false,
-      cell: ({ row }) => <EditableCell value={row.original.observaciones} placeholder="Notas…" onChange={v => handleUpdate(row.original.id, "observaciones", v)} />, size: 170 }),
-    {
-      id: "actions", header: "", enableSorting: false,
-      cell: ({ row }) => (
-        <div className="flex items-center justify-center gap-1 h-full px-1">
-          <button onClick={() => setHistoryRow(row.original)} title="Historial"
-            className="w-6 h-6 flex items-center justify-center rounded hover:bg-[#203a58] transition-colors" style={{ color: "var(--text-muted)" }}>
+    ch.accessor("empleado",{
+      header:({column})=><SH col={column} label="Apellido y Nombre"/>,
+      cell:({row})=><EditableCell value={row.original.empleado} type="name" placeholder="García, Juan" onChange={v=>upd(row.original.id,"empleado",v)}/>,
+      size:185,
+    }),
+    ch.accessor("motivo",{
+      header:({column})=><SH col={column} label="Motivo"/>,
+      cell:({row})=><select value={row.original.motivo} onChange={e=>upd(row.original.id,"motivo",e.target.value)} style={{width:"100%",height:"100%",background:"transparent",border:"none",outline:"none",padding:"0 10px",fontSize:12,color:row.original.motivo?"var(--t1)":"var(--t3)",cursor:"pointer"}}>
+        <option value="">— Seleccionar —</option>
+        {MOTIVOS.map(m=><option key={m} value={m}>{m}</option>)}
+      </select>,
+      size:198,
+    }),
+    ch.accessor("sector",{
+      header:({column})=><SH col={column} label="Área / Sector"/>,
+      cell:({row})=><SectorCell value={row.original.sector} onChange={v=>upd(row.original.id,"sector",v)}/>,
+      size:145,
+    }),
+    ch.accessor("ot",{
+      header:({column})=><SH col={column} label="OT"/>,
+      cell:({row})=><EditableCell value={row.original.ot} type="ot" placeholder="0000" onChange={v=>upd(row.original.id,"ot",v)}/>,
+      size:100,
+    }),
+    ch.accessor("ot_em",{ header:"OT Em.", enableSorting:false, size:82,
+      cell:({row})=><EditableCell value={row.original.ot_em} type="ot" onChange={v=>upd(row.original.id,"ot_em",v)}/>,
+    }),
+    ch.accessor("ot_em2",{ header:"OT Em.2", enableSorting:false, size:82,
+      cell:({row})=><EditableCell value={row.original.ot_em2} type="ot" onChange={v=>upd(row.original.id,"ot_em2",v)}/>,
+    }),
+    ch.accessor("hh_normales",{
+      header:({column})=><SH col={column} label="HH Nor."/>,
+      cell:({row})=><EditableCell value={row.original.hh_normales} type="hora" placeholder="00:00" align="center" onChange={v=>upd(row.original.id,"hh_normales",v)}/>,
+      size:72,
+    }),
+    ch.accessor("hh_50",{
+      header:({column})=><SH col={column} label="HH 50%"/>,
+      cell:({row})=><EditableCell value={row.original.hh_50} type="hora" placeholder="00:00" align="center" onChange={v=>upd(row.original.id,"hh_50",v)}/>,
+      size:72,
+    }),
+    ch.accessor("hh_100",{
+      header:({column})=><SH col={column} label="HH 100%"/>,
+      cell:({row})=><EditableCell value={row.original.hh_100} type="hora" placeholder="00:00" align="center" onChange={v=>upd(row.original.id,"hh_100",v)}/>,
+      size:76,
+    }),
+    { id:"complements", header:"Complementos", enableSorting:false, size:158,
+      cell:({row})=><ComplementEditor row={row.original} onSave={vals=>{ upd(row.original.id,"insa",vals.insa); upd(row.original.id,"polu",vals.polu); upd(row.original.id,"noct",vals.noct); }}/>,
+    },
+    ch.accessor("estado",{
+      header:({column})=><SH col={column} label="Estado"/>,
+      cell:({row})=><div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",padding:"0 8px"}}><StatusBadge value={row.original.estado as Estado} onChange={v=>upd(row.original.id,"estado",v)}/></div>,
+      size:128,
+    }),
+    ch.accessor("observaciones",{ header:"Observaciones", enableSorting:false, size:170,
+      cell:({row})=><EditableCell value={row.original.observaciones} placeholder="Notas…" onChange={v=>upd(row.original.id,"observaciones",v)}/>,
+    }),
+    { id:"actions", header:"", enableSorting:false, size:60,
+      cell:({row})=>(
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:2,height:"100%",padding:"0 4px"}}>
+          <button onClick={()=>setHistRow(row.original)} title="Historial" style={{width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,background:"transparent",border:"none",cursor:"pointer",color:"var(--t3)"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </button>
-          <button onClick={() => handleDuplicate(row.original)} title="Duplicar"
-            className="w-6 h-6 flex items-center justify-center rounded hover:bg-[#203a58] transition-colors" style={{ color: "var(--text-muted)" }}>
+          <button onClick={()=>handleDup(row.original)} title="Duplicar" style={{width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,background:"transparent",border:"none",cursor:"pointer",color:"var(--t3)"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </button>
         </div>
-      ), size: 62,
+      ),
     },
-  ], [data, selectedRows, handleUpdate, handleDuplicate, selectCell]);
+  ],[data,selected,upd,handleDup]);
 
   const table = useReactTable({
-    data, columns,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    globalFilterFn: gff,
-    state: { globalFilter: filters, sorting },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: () => {},
+    data, columns, getCoreRowModel:getCoreRowModel(),
+    getFilteredRowModel:getFilteredRowModel(), getSortedRowModel:getSortedRowModel(),
+    globalFilterFn:gff, state:{globalFilter:filters,sorting}, onSortingChange:setSorting,
+    onGlobalFilterChange:()=>{},
   });
 
-  const filteredRows = table.getRowModel().rows;
+  const rows = table.getRowModel().rows;
 
-  // Stats + totals
-  const stats = useMemo(() => {
-    const total     = filteredRows.length;
-    const pendiente = filteredRows.filter(r => r.original.estado === "Pendiente").length;
-    const revision  = filteredRows.filter(r => r.original.estado === "En revisión").length;
-    const corregido = filteredRows.filter(r => r.original.estado === "Corregido").length;
-    const parseHH = (s: string) => { if (!s || s === "00:00") return 0; const [h,m] = s.split(":").map(Number); return h*60+(m||0); };
-    const sumMin = (field: keyof TimeError) => filteredRows.reduce((acc, r) => acc + parseHH(String(r.original[field] ?? "")), 0);
-    const fmt = (m: number) => m > 0 ? `${Math.floor(m/60)}:${String(m%60).padStart(2,"0")}` : "—";
-    return { total, pendiente, revision, corregido,
-      norTotal: fmt(sumMin("hh_normales")),
-      e50Total: fmt(sumMin("hh_50")),
-      e100Total: fmt(sumMin("hh_100")),
+  const stats = useMemo(()=>{
+    const parseHH=(s:string)=>{ if(!s||s==="00:00") return 0; const[h,m]=s.split(":").map(Number); return h*60+(m||0); };
+    const sumMin=(f:keyof TimeError)=>rows.reduce((a,r)=>a+parseHH(String(r.original[f]??"")),0);
+    const fmt=(m:number)=>m>0?`${Math.floor(m/60)}:${String(m%60).padStart(2,"0")}`:"—";
+    return {
+      total:rows.length, pendiente:rows.filter(r=>r.original.estado==="Pendiente").length,
+      revision:rows.filter(r=>r.original.estado==="En revisión").length,
+      corregido:rows.filter(r=>r.original.estado==="Corregido").length,
+      faltantes:rows.filter(r=>FALTANTES.has(r.original.motivo)).length,
+      norTotal:fmt(sumMin("hh_normales")), e50Total:fmt(sumMin("hh_50")), e100Total:fmt(sumMin("hh_100")),
     };
-  }, [filteredRows]);
+  },[rows]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ background: "var(--bg-base)" }}>
+    <div style={{display:"flex",flexDirection:"column",height:"100vh",overflow:"hidden",background:"var(--bg)"}}>
+      {/* HEADER */}
+      <Header onLogout={handleLogout}/>
 
-      {/* ══ HEADER ══ */}
-      <header style={{ background: "var(--bg-surface)", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-        {/* Top row */}
-        <div className="flex items-center justify-between px-4 py-2.5 gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <img src="/logo-sjg.jpg" alt="SJG" style={{ height: isMobile ? 32 : 44, width:"auto", filter:"invert(1)", mixBlendMode:"screen", flexShrink:0 }} />
-            {!isMobile && <>
-              <div style={{ width:1, height:28, background:"var(--border)", flexShrink:0 }} />
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold tracking-widest uppercase" style={{ color:"var(--text-secondary)", fontFamily:"'DM Mono',monospace" }}>Gestión de Horas</p>
-                <p className="text-[9px] tracking-wide" style={{ color:"var(--text-muted)", fontFamily:"'DM Mono',monospace" }}>Control de Fichadas</p>
-              </div>
-            </>}
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded" style={{ background:"rgba(34,197,94,0.08)", border:"1px solid rgba(34,197,94,0.2)" }}>
-              <div className="live-dot" />
-              {!isMobile && <span className="text-[10px] font-semibold tracking-widest" style={{ color:"#22c55e", fontFamily:"'DM Mono',monospace" }}>EN VIVO</span>}
+      {/* CONTROLS */}
+      <div style={{background:"var(--bg-card)",borderBottom:"1px solid var(--border-hi)",flexShrink:0}}>
+        {/* Row 1 - Actions */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",gap:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,background:"rgba(5,150,105,0.08)",border:"1px solid rgba(5,150,105,0.2)"}}>
+              <div className="dot-live"/>
+              {!isMobile&&<span style={{fontSize:9,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:"var(--green)",fontFamily:"'JetBrains Mono',monospace"}}>EN VIVO</span>}
             </div>
-            {!isMobile && <ImportExcel onImport={handleImport} currentFecha={filters.fecha} onReset={load} />}
-            {!isMobile && filteredRows.length > 0 && <ExportExcel data={filteredRows.map(r => r.original)} fecha={filters.fecha} />}
-            <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              {isMobile ? "" : "Nuevo"}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
+            {!isMobile&&<ImportExcel onImport={handleImport} currentFecha={filters.fecha} onReset={load}/>}
+            {!isMobile&&rows.length>0&&<ExportExcel data={rows.map(r=>r.original)} fecha={filters.fecha}/>}
+            <button className="btn btn-primary" onClick={()=>setAddModal(true)}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              {isMobile?"Nuevo":"Nuevo registro"}
             </button>
-            {selectedRows.size > 0 && (
-              <button className="btn btn-danger" onClick={handleDeleteSelected}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-                {!isMobile && `Eliminar (${selectedRows.size})`}
-              </button>
-            )}
-            <button onClick={handleLogout} className="btn btn-ghost" title="Cerrar sesión">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            </button>
+            {selected.size>0&&<button className="btn btn-danger" onClick={handleDelSel}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+              {`Eliminar (${selected.size})`}
+            </button>}
           </div>
         </div>
 
-        {/* Filter row */}
-        <div className="px-4 pb-2.5 flex flex-wrap items-center gap-2" style={{ borderTop:"1px solid var(--border)" }}>
-          <div className="relative flex items-center">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-              className="absolute left-2.5" style={{ color:"var(--text-muted)", pointerEvents:"none" }}>
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input className="filter-input pl-7 w-44" placeholder="Buscar empleado…"
-              value={filters.search} onChange={e => setFilter("search", e.target.value)} />
+        {/* Accent line */}
+        <div style={{height:1,background:"linear-gradient(90deg,transparent,var(--accent),var(--accent-hover),transparent)",opacity:0.4}}/>
+
+        {/* Row 2 — filters */}
+        <div style={{padding:"10px 20px",display:"flex",flexWrap:"wrap",alignItems:"center",gap:10}}>
+          <div style={{position:"relative",display:"flex",alignItems:"center"}}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{position:"absolute",left:9,color:"var(--t3)",pointerEvents:"none"}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input className="fi" style={{paddingLeft:28,width:160}} placeholder="Buscar empleado…" value={filters.search} onChange={e=>setF("search",e.target.value)}/>
           </div>
-
-          <div className="flex items-center gap-1">
-            <input type="date" className="filter-input" value={filters.fecha} onChange={e => setFilter("fecha", e.target.value)} />
-            {filters.fecha && <button onClick={() => setFilter("fecha","")} className="text-[10px] px-1.5 py-1 rounded" style={{ color:"var(--text-muted)", background:"var(--bg-elevated)" }}>✕</button>}
+          <div style={{display:"flex",alignItems:"center",gap:4}}>
+            <input type="date" className="fi" value={filters.fecha} onChange={e=>setF("fecha",e.target.value)}/>
+            {filters.fecha&&<button onClick={()=>setF("fecha","")} className="btn btn-ghost" style={{padding:"0 8px",height:30,fontSize:11}}>✕</button>}
           </div>
-
-          <select className="filter-input" value={filters.estado} onChange={e => setFilter("estado", e.target.value)}>
-            <option value="">Todos los estados</option>
-            <option>Pendiente</option><option>En revisión</option><option>Corregido</option>
-          </select>
-
-          {!isMobile && <>
-            <select className="filter-input w-44" value={filters.motivo} onChange={e => setFilter("motivo", e.target.value)}>
-              <option value="">Todos los motivos</option>
-              {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <input className="filter-input w-32" placeholder="Sector…" value={filters.sector} onChange={e => setFilter("sector", e.target.value)} />
-          <button
-            onClick={() => setFilters(f => ({ ...f, soloFaltantes: !f.soloFaltantes }))}
-            className="btn text-[11px] py-1 px-3 flex items-center gap-1.5"
-            style={{
-              background: filters.soloFaltantes ? "rgba(245,158,11,0.2)" : "transparent",
-              border: filters.soloFaltantes ? "1px solid rgba(245,158,11,0.5)" : "1px solid var(--border)",
-              color: filters.soloFaltantes ? "#f59e0b" : "var(--text-secondary)",
-              borderRadius: 3,
-              cursor: "pointer",
-              fontFamily: "'IBM Plex Sans', sans-serif",
-            }}
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            Faltantes
-            {filters.soloFaltantes && <span className="text-[10px] font-bold">✓</span>}
-          </button>
+          <SelectDropdown 
+            value={filters.estado}
+            onChange={e=>setF("estado",e)}
+            options={[
+              {label:"Todos los estados",value:""},
+              {label:"Pendiente",value:"Pendiente"},
+              {label:"En revisión",value:"En revisión"},
+              {label:"Corregido",value:"Corregido"}
+            ]}
+            style={{width:140}}
+          />
+          {!isMobile&&<>
+            <SelectDropdown
+              value={filters.motivo}
+              onChange={e=>setF("motivo",e)}
+              options={[{label:"Todos los motivos",value:""}, ...MOTIVOS.map(m=>({label:m,value:m}))]}
+              style={{width:170}}
+            />
+            <input className="fi" style={{width:120}} placeholder="Sector…" value={filters.sector} onChange={e=>setF("sector",e.target.value)}/>
           </>}
-
-          {hasActiveFilters && (
-            <button className="btn btn-ghost text-[11px] py-1" onClick={() => setFilters(f => ({ ...f, estado:"", sector:"", motivo:"", search:"", soloFaltantes: false }))}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              Limpiar
-            </button>
-          )}
-
-          {/* Mobile import */}
-          {isMobile && <ImportExcel onImport={handleImport} currentFecha={filters.fecha} onReset={load} />}
-
-          {/* Stats */}
-          <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
-            <span className="text-[10px]" style={{ color:"var(--text-muted)", fontFamily:"'DM Mono',monospace" }}>{stats.total} reg.</span>
-            <div className="w-px h-3" style={{ background:"var(--border)" }} />
+          <button onClick={()=>setF("soloFaltantes",!filters.soloFaltantes)}
+            style={{height:30,padding:"0 12px",borderRadius:7,fontSize:11,fontWeight:500,cursor:"pointer",display:"flex",alignItems:"center",gap:5,border:`1px solid ${filters.soloFaltantes?"rgba(251,191,36,0.4)":"var(--border-hi)"}`,background:filters.soloFaltantes?"rgba(251,191,36,0.12)":"transparent",color:filters.soloFaltantes?"var(--amber)":"var(--t3)",transition:"all 0.15s"}}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Faltantes{filters.soloFaltantes?" ✓":""}
+          </button>
+          {isMobile&&<ImportExcel onImport={handleImport} currentFecha={filters.fecha} onReset={load}/>}
+          {hasFilter&&<button className="btn btn-ghost" style={{height:30,fontSize:11}} onClick={()=>setFilters(f=>({...f,estado:"",sector:"",motivo:"",search:"",soloFaltantes:false}))}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Limpiar
+          </button>}
+          <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
+            <span style={{fontSize:11,color:"var(--t3)",fontFamily:"'JetBrains Mono',monospace"}}>{stats.total} reg.</span>
+            <div style={{width:1,height:12,background:"var(--border-hi)"}}/>
             <span className="badge badge-pending">{stats.pendiente}</span>
             <span className="badge badge-review">{stats.revision}</span>
             <span className="badge badge-done">{stats.corregido}</span>
+            {stats.faltantes>0&&<span className="badge" style={{background:"rgba(251,191,36,0.1)",color:"var(--amber)",borderColor:"rgba(251,191,36,0.25)"}}>⚠ {stats.faltantes}</span>}
           </div>
         </div>
+      </div>
 
-        {/* Totals bar */}
-        {filteredRows.length > 0 && (
-          <div className="px-4 pb-2 flex items-center gap-4 flex-wrap" style={{ fontFamily:"'DM Mono',monospace", fontSize:10 }}>
-            <span style={{ color:"var(--text-muted)" }}>Totales del período:</span>
-            {[
-              { label:"HH Nor.", val:stats.norTotal, color:"var(--text-primary)" },
-              { label:"HH 50%", val:stats.e50Total, color:"#f59e0b" },
-              { label:"HH 100%", val:stats.e100Total, color:"#60a5fa" },
-            ].map(({ label, val, color }) => val !== "—" && (
-              <span key={label} style={{ color:"var(--text-muted)" }}>
-                {label}: <strong style={{ color }}>{val}</strong>
-              </span>
-            ))}
-          </div>
-        )}
-      </header>
-
-      {/* ══ CONTENT ══ */}
-      <div className="flex-1 overflow-auto">
+      {/* CONTENT */}
+      <div style={{flex:1,overflow:"auto"}}>
         {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="flex flex-col items-center gap-3" style={{ color:"var(--text-muted)" }}>
-              <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor:"var(--accent)", borderTopColor:"transparent" }} />
-              <span className="text-xs">Cargando datos…</span>
-            </div>
+          <div className="table-state table-state-loading">
+            <div className="table-state-spinner" />
+            <span>Cargando datos…</span>
           </div>
-        ) : filteredRows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color:"var(--text-muted)" }}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.75" style={{ opacity:0.2 }}>
-              <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>
-            </svg>
-            <p className="text-sm font-medium" style={{ color:"var(--text-secondary)" }}>Sin registros</p>
-            <p className="text-xs" style={{ color:"var(--text-muted)" }}>
-              {hasActiveFilters ? "Probá limpiar los filtros" : "Agregá un registro o importá un Excel"}
-            </p>
+        ) : rows.length === 0 ? (
+          <div className="table-state table-state-empty">
+            <svg className="table-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+            <p className="table-state-title">Sin registros</p>
+            <p className="table-state-desc">{hasFilter ? "Probá limpiar los filtros" : "Agregá un registro o importá un Excel"}</p>
           </div>
-        ) : isMobile ? (
-          /* Mobile cards */
-          <div className="p-3">
-            {filteredRows.map(row => (
-              <MobileCard key={row.id} row={row.original}
-                onUpdate={handleUpdate} onDuplicate={handleDuplicate}
-                onDelete={handleDelete} onHistory={setHistoryRow} />
-            ))}
+        ) :isMobile?(
+          <div style={{padding:12}}>
+            {rows.map(row=><MobileCard key={row.id} row={row.original} onUpdate={upd} onDuplicate={handleDup} onDelete={handleDel} onHistory={setHistRow}/>)}
           </div>
-        ) : (
-          /* Desktop table */
-          <table className="timeclock-table">
+        ):(
+          <table className="tbl">
             <thead>
-              {table.getHeaderGroups().map(hg => (
+              {table.getHeaderGroups().map(hg=>(
                 <tr key={hg.id}>
-                  {hg.headers.map(header => (
-                    <th key={header.id} style={{ width:header.getSize() }}>
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                    </th>
-                  ))}
+                  {hg.headers.map(h=><th key={h.id} style={{width:h.getSize()}}>{flexRender(h.column.columnDef.header,h.getContext())}</th>)}
                 </tr>
               ))}
             </thead>
             <tbody>
-              {filteredRows.map((row, i) => (
-                <tr key={row.id}
-                  className={`fade-in ${selectedRows.has(row.original.id) ? "selected" : ""}`}
-                  style={{
-                    animationDelay:`${Math.min(i*12,200)}ms`,
-                    ...(FALTANTE_MOTIVOS.includes(row.original.motivo)
-                      ? { borderLeft: "3px solid #f59e0b" }
-                      : {}),
-                  }}>
-                  {row.getVisibleCells().map(cell => (
-                    <td key={cell.id} style={{ width:cell.column.getSize() }}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
+              {rows.map((row,i)=>(
+                <tr key={row.id} className={`anim${selected.has(row.original.id)?" sel":""}`}
+                  style={{animationDelay:`${Math.min(i*10,180)}ms`, borderLeft:FALTANTES.has(row.original.motivo)?"2px solid var(--amber)":"none"}}>
+                  {row.getVisibleCells().map(cell=><td key={cell.id} style={{width:cell.column.getSize()}}>{flexRender(cell.column.columnDef.cell,cell.getContext())}</td>)}
                 </tr>
               ))}
             </tbody>
@@ -669,23 +446,29 @@ export default function TimeErrorTable() {
         )}
       </div>
 
-      {/* ══ FOOTER ══ */}
-      <footer className="flex-none flex items-center justify-between px-4 py-2 border-t" style={{ background:"var(--bg-surface)", borderColor:"var(--border)" }}>
-        <span className="text-[10px]" style={{ color:"var(--text-muted)", fontFamily:"'DM Mono',monospace" }}>
-          SJG Montajes Industriales © {new Date().getFullYear()}
-        </span>
-        <a href="https://www.godreamai.com/" target="_blank" rel="noopener noreferrer"
-          className="flex items-center gap-2 transition-opacity hover:opacity-80">
-          <span className="text-[10px]" style={{ color:"var(--text-muted)" }}>Desarrollado por</span>
-          <img src="/logo-gdai.png" alt="Go Dream AI" style={{ height:28, width:"auto", mixBlendMode:"screen", filter:"brightness(1.6)" }} />
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color:"var(--text-muted)", opacity:0.4 }}>
-            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-          </svg>
-        </a>
-      </footer>
+      {/* FOOTER */}
+      <Footer/>
 
-      {showAddModal && <AddRowModal onAdd={handleAdd} onClose={() => setShowAddModal(false)} />}
-      {historyRow && <HistoryModal recordId={historyRow.id} empleado={historyRow.empleado} onClose={() => setHistoryRow(null)} />}
+      {addModal&&<AddRowModal onAdd={handleAdd} onClose={()=>setAddModal(false)}/>}
+      {histRow&&<HistoryModal recordId={histRow.id} empleado={histRow.empleado} onClose={()=>setHistRow(null)}/>}
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .table-state {
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          height: 100%; gap: 14px; padding: 24px;
+        }
+        .table-state-loading span { font-size: 13px; color: var(--t3); }
+        .table-state-spinner {
+          width: 36px; height: 36px; border-radius: 50%;
+          border: 2px solid var(--accent); border-top-color: transparent;
+          animation: spin 0.8s linear infinite;
+        }
+        .table-state-empty { gap: 10px; }
+        .table-state-icon { width: 52px; height: 52px; opacity: 0.12; color: var(--t1); }
+        .table-state-title { font-size: 15px; font-weight: 600; color: var(--t2); }
+        .table-state-desc { font-size: 13px; color: var(--t3); }
+      `}</style>
     </div>
   );
 }
