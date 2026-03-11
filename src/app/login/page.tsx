@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
@@ -9,12 +9,46 @@ const FEATURES = [
   { icon: "🔒", label: "Acceso seguro", desc: "Login con credenciales por usuario" },
 ];
 
+const THEME_STORAGE_KEY = "sjg-theme";
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const root = document.documentElement as HTMLElement;
+    const attr = root.dataset.theme;
+    let initial: "light" | "dark" = "light";
+    if (attr === "light" || attr === "dark") {
+      initial = attr;
+    } else {
+      const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+      if (stored === "light" || stored === "dark") {
+        initial = stored;
+      } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        initial = "dark";
+      }
+    }
+    setTheme(initial);
+    root.dataset.theme = initial;
+    window.localStorage.setItem(THEME_STORAGE_KEY, initial);
+  }, []);
+
+  const toggleTheme = () => {
+    if (typeof window === "undefined") return;
+    setTheme((prev) => {
+      const next: "light" | "dark" = prev === "light" ? "dark" : "light";
+      const root = document.documentElement as HTMLElement;
+      root.dataset.theme = next;
+      window.localStorage.setItem(THEME_STORAGE_KEY, next);
+      return next;
+    });
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,6 +112,25 @@ export default function LoginPage() {
       {/* Panel derecho — formulario */}
       <div className="login-right">
         <div className="login-form-wrap">
+          <div className="login-top-actions">
+            <button
+              type="button"
+              className="login-theme-toggle"
+              onClick={toggleTheme}
+              title={theme === "light" ? "Cambiar a tema oscuro" : "Cambiar a tema claro"}
+            >
+              {theme === "light" ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
+                  <circle cx="12" cy="12" r="5" />
+                  <path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              )}
+            </button>
+          </div>
           <div className="login-mobile-logo">
             <img src="/logoSJG.png" alt="SJG Montajes Industriales" className="login-logo-img" />
             <span className="login-logo-divider" />
@@ -139,12 +192,11 @@ export default function LoginPage() {
           <p className="login-credit">
             Desarrollado por{" "}
             <a
-              href="https://godream.ai"
+              href="https://www.godreamai.com/"
               target="_blank"
               rel="noreferrer"
-              style={{ color: "var(--accent)", fontWeight: 600, textDecoration: "none" }}
             >
-              gdai
+              <img src="/logoGoD.png" alt="godreamai" className="login-credit-logo" />
             </a>
           </p>
         </div>

@@ -34,10 +34,25 @@ function SortIcon({dir}:{dir:"asc"|"desc"|false}) {
   if(!dir) return <svg width="8" height="10" viewBox="0 0 8 10" fill="currentColor" style={{opacity:0.2}}><path d="M4 0L8 4H0z"/><path d="M4 10L0 6h8z"/></svg>;
   return <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor" style={{color:"var(--accent)",transform:dir==="desc"?"rotate(180deg)":"none"}}><path d="M4 0L8 5H0z"/></svg>;
 }
+const HEADER_TOOLTIPS: Record<string, string> = {
+  "Contrato": "Número de contrato (SAP) asociado a la tarea.",
+  "OT": "Orden de trabajo principal donde se imputan las horas.",
+  "OT Em.": "Orden de trabajo del empleador (si difiere de la principal).",
+  "OT Em.2": "Segunda orden de trabajo del empleador.",
+  "HH Nor.": "Horas normales trabajadas en la jornada (HH:MM).",
+  "HH 50%": "Horas extra al 50% (HH:MM).",
+  "HH 100%": "Horas extra al 100% (HH:MM).",
+  "Complementos": "INSA, POLU y NOCT: adicionales de jornada.",
+  "Grupo": "Identificador de grupo para relacionar varias filas.",
+};
+
 function SH({col,label}:{col:any;label:string}) {
   return col.getCanSort()
-    ? <div onClick={col.getToggleSortingHandler()} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none",whiteSpace:"nowrap"}}>{label}<SortIcon dir={col.getIsSorted()}/></div>
-    : <span style={{whiteSpace:"nowrap"}}>{label}</span>;
+    ? <div onClick={col.getToggleSortingHandler()} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none",whiteSpace:"nowrap"}}>
+        <span title={HEADER_TOOLTIPS[label]}>{label}</span>
+        <SortIcon dir={col.getIsSorted()}/>
+      </div>
+    : <span style={{whiteSpace:"nowrap"}} title={HEADER_TOOLTIPS[label]}>{label}</span>;
 }
 
 const gff: FilterFn<TimeError> = (row,_,f:FilterState) => {
@@ -155,6 +170,7 @@ function MobileCard({row,onUpdate,onDuplicate,onDelete,onHistory}:{row:TimeError
 
 // ── Main ──
 const ch = createColumnHelper<TimeError>();
+const FILTERS_STORAGE_KEY = "time_errors_filters_v1";
 
 export default function TimeErrorTable() {
   const router = useRouter();
@@ -169,6 +185,20 @@ export default function TimeErrorTable() {
     fecha:new Date().toISOString().slice(0,10), estado:"", sector:"", motivo:"", search:"", soloFaltantes:false,
   });
 
+  useEffect(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(FILTERS_STORAGE_KEY) : null;
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<FilterState>;
+      setFilters((prev) => ({
+        ...prev,
+        ...parsed,
+      }));
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(()=>{ const chk=()=>setIsMobile(window.innerWidth<768); chk(); window.addEventListener("resize",chk); return ()=>window.removeEventListener("resize",chk); },[]);
 
   const load = useCallback(async()=>{
@@ -179,6 +209,15 @@ export default function TimeErrorTable() {
   },[]);
 
   useEffect(()=>{ load(); },[load]);
+
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+    } catch {
+      // ignore
+    }
+  }, [filters]);
 
   useEffect(()=>{
     const ch = supabase.channel("te_rt2")
@@ -283,7 +322,7 @@ export default function TimeErrorTable() {
       cell:({row})=><EditableCell value={row.original.hh_100} type="hora" placeholder="00:00" align="center" onChange={v=>upd(row.original.id,"hh_100",v)}/>,
       size:76,
     }),
-    { id:"complements", header:"Complementos", enableSorting:false, size:158,
+    { id:"complements", header:()=><span title={HEADER_TOOLTIPS["Complementos"]}>Complementos</span>, enableSorting:false, size:158,
       cell:({row})=><ComplementEditor row={row.original} onSave={vals=>{ upd(row.original.id,"insa",vals.insa); upd(row.original.id,"polu",vals.polu); upd(row.original.id,"noct",vals.noct); }}/>,
     },
     ch.accessor("estado",{
@@ -349,7 +388,7 @@ export default function TimeErrorTable() {
       {/* CONTROLS */}
       <div style={{background:"var(--bg-card)",borderBottom:"1px solid var(--border-hi)",flexShrink:0}}>
         {/* Row 1 - Actions */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",gap:12}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",gap:12,flexWrap:"wrap"}}>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
             <div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,background:"rgba(5,150,105,0.08)",border:"1px solid rgba(5,150,105,0.2)"}}>
               <div className="dot-live"/>

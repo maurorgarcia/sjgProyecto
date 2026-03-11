@@ -150,7 +150,7 @@ export default function ImportExcel({ onImport, currentFecha, onReset }: Props) 
 
         {menu&&<>
           <div style={{position:"fixed",inset:0,zIndex:40}} onClick={()=>setMenu(false)}/>
-          <div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:50,background:"var(--bg-card)",border:"1px solid var(--border-hi)",borderRadius:10,overflow:"hidden",minWidth:280,boxShadow:"0 16px 48px rgba(0,0,0,0.6)"}}>
+          <div style={{position:"absolute",right:0,left:0,top:"calc(100% + 4px)",zIndex:50,background:"var(--bg-card)",border:"1px solid var(--border-hi)",borderRadius:10,overflow:"hidden",minWidth:260,maxWidth:"90vw",margin:"0 auto",boxShadow:"0 16px 48px rgba(0,0,0,0.6)"}}>
             <div style={{padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
               <p style={{padding:"4px 14px 8px",fontSize:9,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"var(--t3)"}}>Importar Excel</p>
               {[

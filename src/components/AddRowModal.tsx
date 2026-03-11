@@ -68,7 +68,7 @@ export default function AddRowModal({ onAdd, onClose }: { onAdd:(r:Omit<TimeErro
   const err = (f:string) => errors[f]?<p style={{fontSize:10,color:"var(--red)",marginTop:4}}>⚠ {errors[f]}</p>:null;
 
   const HoraRow = ({label,field,comp,setComp}:{label:string;field:keyof typeof BLANK;comp:string;setComp:(v:string)=>void})=>(
-    <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
+    <div style={{display:"flex",gap:6,alignItems:"flex-end",minWidth:0}}>
       <div style={{flex:1}}>
         <label className="lbl">{label}</label>
         <input value={form[field] as string} onChange={set(field)} className="form-input" placeholder="00:00"/>

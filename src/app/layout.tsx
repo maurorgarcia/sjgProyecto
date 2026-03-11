@@ -43,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <Toaster
-          position="bottom-right"
+          position="top-right"
           toastOptions={{
             style: {
               background: "var(--bg-card)",

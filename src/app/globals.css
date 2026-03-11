@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap');
 
- :root {
+:root {
   /* Base */
   --bg:           #fafbfc;
   --bg-card:      #ffffff;
@@ -8,6 +8,7 @@
   --bg-hover:     #eef0f3;
   --bg-input:     #f1f3f5;
   --bg-elevated:  #ffffff;
+  --bg-soft:      #f0f2f6;
 
   /* Borders */
   --border:       #e8eaef;
@@ -19,6 +20,7 @@
   --accent-hover: #9a7209;
   --accent-bg:    rgba(184, 134, 11, 0.08);
   --accent-glow:  rgba(184, 134, 11, 0.18);
+  --accent-soft:  rgba(184, 134, 11, 0.14);
 
   /* Semantic */
   --blue:         #2563eb;
@@ -42,6 +44,41 @@
   --shadow-lg:    0 12px 32px rgba(28, 33, 40, 0.08), 0 4px 12px rgba(28, 33, 40, 0.04);
 
   font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+:root[data-theme="dark"] {
+  --bg:           #050816;
+  --bg-card:      #0b1020;
+  --bg-row:       #111827;
+  --bg-hover:     #1f2937;
+  --bg-input:     #111827;
+  --bg-elevated:  #020617;
+  --bg-soft:      #111827;
+
+  --border:       #1f2933;
+  --border-hi:    #374151;
+  --border-focus: #c4a574;
+
+  --accent:       #fbbf24;
+  --accent-hover: #f59e0b;
+  --accent-bg:    rgba(251, 191, 36, 0.12);
+  --accent-glow:  rgba(251, 191, 36, 0.35);
+  --accent-soft:  rgba(251, 191, 36, 0.2);
+
+  --blue:         #60a5fa;
+  --cyan:         #22d3ee;
+  --green:        #4ade80;
+  --amber:        #fbbf24;
+  --pink:         #fb7185;
+  --red:          #f97373;
+
+  --t1:           #f9fafb;
+  --t2:           #e5e7eb;
+  --t3:           #9ca3af;
+
+  --shadow-sm:    0 1px 2px rgba(0,0,0,0.4);
+  --shadow:       0 8px 24px rgba(0,0,0,0.65);
+  --shadow-lg:    0 18px 40px rgba(0,0,0,0.8);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -219,8 +256,12 @@ textarea.form-input { resize: vertical; }
   border: 1px solid var(--border-hi);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  width: 100%; max-width: 560px; max-height: 90vh;
-  display: flex; flex-direction: column; overflow: hidden;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   animation: fadeUp 0.25s ease-out;
 }
 .modal-head {
@@ -233,6 +274,21 @@ textarea.form-input { resize: vertical; }
   padding: 16px 22px; border-top: 1px solid var(--border);
   display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0;
   background: var(--bg-row);
+}
+
+@media (max-width: 640px) {
+  .overlay {
+    padding: 12px;
+    align-items: flex-end;
+  }
+  .modal {
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 16px 16px 0 0;
+  }
+  .modal-body {
+    padding: 16px 18px;
+  }
 }
 
 /* ── Label ── */
@@ -281,6 +337,12 @@ textarea.form-input { resize: vertical; }
   height: 36px;
   width: auto;
   object-fit: contain;
+}
+:root[data-theme="dark"] .login-logo-img,
+:root[data-theme="dark"] .app-header-logo,
+:root[data-theme="dark"] .app-footer-link-logo,
+:root[data-theme="dark"] .login-credit-logo {
+  filter: brightness(0) invert(1);
 }
 .login-logo-divider {
   width: 1px;
@@ -475,9 +537,44 @@ textarea.form-input { resize: vertical; }
   color: var(--t3);
   margin-top: 28px;
 }
-.login-credit strong {
+.login-credit-logo {
+  height: 16px;
+  width: auto;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+.login-top-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+.login-theme-toggle {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border-hi);
+  background: var(--bg-input);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--t2);
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+}
+.login-theme-toggle:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
   color: var(--accent);
-  font-weight: 600;
+  transform: translateY(-0.5px);
+}
+ .login-theme-toggle svg {
+  stroke: currentColor;
+  fill: none;
+}
+ .login-theme-toggle svg path:first-of-type {
+  fill: currentColor;
 }
 
 @keyframes loginFadeLeft {
