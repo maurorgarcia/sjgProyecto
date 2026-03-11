@@ -10,7 +10,8 @@ const COMPS     = ["","INSA","POLU","NOCT"];
 
 const BLANK = {
   fecha: new Date().toISOString().slice(0,10), contrato:"", empleado:"", motivo:"", sector:"",
-  ot:"", ot_em:"", ot_em2:"", hh_normales:"00:00", hh_50:"00:00", hh_100:"00:00",
+  ot:"", ot_em:"", ot_em2:"", grupo_id: null as string | null,
+  hh_normales:"00:00", hh_50:"00:00", hh_100:"00:00",
   estado:"Pendiente" as const, observaciones:"", insa:"00:00", polu:"00:00", noct:"00:00",
 };
 
@@ -31,10 +32,10 @@ export default function AddRowModal({ onAdd, onClose }: { onAdd:(r:Omit<TimeErro
 
   const set = useCallback((field:keyof typeof BLANK)=>(value:string|React.ChangeEvent<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>)=>{
     const val = typeof value === "string" ? value : value.target.value;
-    const filtered = filterVal(field, val);
+    const filtered = filterVal(field as string, val);
     setForm(f=>({...f,[field]:filtered}));
     if(field==="empleado"&&/[0-9]/.test(filtered)) setErrors(p=>({...p,empleado:"Solo letras"}));
-    else setErrors(p=>({...p,[field]:""}));
+    else setErrors(p=>({...p,[field as string]:""}));
   },[]);
 
   const submit = async () => {
