@@ -1,91 +1,123 @@
-# ⏱ TimeClock Errors — Control de Fichadas
+# SJG Montajes Industriales — Gestión de Horas
 
-Sistema de gestión de errores de fichadas para contratistas industriales.  
-Reemplaza el Excel diario con una aplicación web en tiempo real con soporte multiusuario.
+Sistema web para el control de errores de fichada y gestión de horas del personal de SJG Montajes Industriales. Reemplaza el flujo manual en Excel con una interfaz en tiempo real, multiusuario y con historial de cambios.
+
+---
+
+## Demo
+
+🔗 [sjg-proyecto-apog.vercel.app](https://sjg-proyecto-apog.vercel.app)
 
 ---
 
 ## Stack
 
-| Tecnología | Uso |
+| Capa | Tecnología |
 |---|---|
-| **Next.js 14** (App Router) | Framework frontend + API routes |
-| **Supabase** | Base de datos PostgreSQL + Realtime + Auth |
-| **TailwindCSS** | Estilos |
-| **TanStack Table v8** | Tabla editable tipo Excel |
-| **SheetJS (xlsx)** | Importación de archivos Excel |
-| **react-hot-toast** | Notificaciones |
+| Framework | Next.js 14 (App Router) |
+| Base de datos | Supabase (PostgreSQL + Realtime) |
+| Autenticación | Supabase Auth |
+| Tabla de datos | TanStack Table v8 |
+| Excel | SheetJS (xlsx) |
+| Estilos | CSS Variables + inline styles |
+| Deploy | Vercel |
+
+---
+
+## Funcionalidades
+
+- **Tabla editable** — clic en cualquier celda para editar inline con validación por tipo de campo
+- **Importar Excel** — tres modos: reemplazar por fecha, agregar, o limpiar todo
+- **Exportar Excel** — descarga los registros filtrados como `.xlsx`
+- **Tiempo real** — sincronización instantánea entre usuarios vía Supabase Realtime
+- **Filtros** — por fecha, empleado, estado, motivo y sector
+- **Faltantes** — resalta y filtra registros con motivo "Falta parte" / "Falta cargar"
+- **Complementos** — editor de INSA, POLU y NOCT por registro
+- **Historial** — registro de cambios por campo con valor anterior y nuevo
+- **Aislamiento por usuario** — cada usuario ve únicamente sus propios registros (RLS)
+- **Dashboard** — gráficos de faltas por día y por sector
+- **Mobile responsive** — vista en cards para pantallas pequeñas
+- **Estados** — Pendiente / En revisión / Corregido con clic para ciclar
 
 ---
 
 ## Estructura del proyecto
 
 ```
-timeclock-app/
-├── src/
-│   ├── app/
-│   │   ├── api/time-errors/route.ts   # API REST (GET, POST, PATCH, DELETE)
-│   │   ├── globals.css                # Estilos globales + design tokens
-│   │   ├── layout.tsx                 # Root layout
-│   │   └── page.tsx                   # Página principal
-│   ├── components/
-│   │   ├── TimeErrorTable.tsx         # Tabla principal con TanStack Table
-│   │   ├── EditableCell.tsx           # Celda editable inline
-│   │   ├── StatusBadge.tsx            # Badge de estado (Pendiente/En revisión/Corregido)
-│   │   ├── ImportExcel.tsx            # Botón + lógica de importación Excel
-│   │   └── AddRowModal.tsx            # Modal para agregar registro
-│   ├── lib/
-│   │   └── supabase.ts                # Cliente Supabase + helpers CRUD
-│   └── types/
-│       └── index.ts                   # TypeScript types
-├── supabase/
-│   └── schema.sql                     # Schema SQL completo para Supabase
-├── .env.local.example                 # Variables de entorno requeridas
-└── package.json
+src/
+├── app/
+│   ├── api/time-errors/route.ts   # API REST (GET, POST, PATCH, DELETE)
+│   ├── dashboard/page.tsx          # Dashboard con métricas
+│   ├── login/page.tsx              # Página de login
+│   ├── page.tsx                    # Página principal (tabla)
+│   ├── globals.css                 # Design system
+│   └── layout.tsx                  # Layout raíz
+├── components/
+│   ├── TimeErrorTable.tsx          # Tabla principal
+│   ├── EditableCell.tsx            # Celda editable con validación
+│   ├── StatusBadge.tsx             # Badge de estado clickeable
+│   ├── AddRowModal.tsx             # Modal para agregar registro
+│   ├── ImportExcel.tsx             # Importación de Excel
+│   ├── ExportExcel.tsx             # Exportación a Excel
+│   ├── ComplementEditor.tsx        # Editor de INSA/POLU/NOCT
+│   ├── HistoryModal.tsx            # Historial de cambios
+│   ├── Header.tsx                  # Header con navegación
+│   ├── Footer.tsx                  # Footer
+│   └── SelectDropdown.tsx          # Dropdown reutilizable
+├── lib/
+│   └── supabase.ts                 # Cliente Supabase + CRUD + historial
+└── types/
+    └── index.ts                    # Tipos TypeScript
+supabase/
+└── schema.sql                      # Schema de base de datos
 ```
 
 ---
 
-## 🚀 Setup local paso a paso
+## Base de datos
 
-### 1. Clonar e instalar dependencias
+**`time_errors`**
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| id | uuid | Clave primaria |
+| user_id | uuid | FK → auth.users (aislamiento por usuario) |
+| fecha | date | Fecha del error |
+| empleado | text | Apellido y nombre |
+| contrato | text | Número de contrato |
+| motivo | text | Motivo del error |
+| sector | text | Área / sector |
+| ot / ot_em / ot_em2 | text | Órdenes de trabajo |
+| hh_normales / hh_50 / hh_100 | text | Horas en formato HH:MM |
+| insa / polu / noct | text | Complementos en HH:MM |
+| estado | text | Pendiente / En revisión / Corregido |
+| grupo_id | text | Agrupación de registros relacionados |
+| observaciones | text | Notas libres |
+
+**`time_errors_history`** — historial de cambios por campo (campo, valor anterior, valor nuevo, fecha)
+
+---
+
+## Instalación local
 
 ```bash
-cd timeclock-app
+# 1. Clonar el repositorio
+git clone https://github.com/maurorgarcia/sjgProyecto.git
+cd sjgProyecto
+
+# 2. Instalar dependencias
 npm install
-```
 
-### 2. Crear proyecto en Supabase
-
-1. Ir a [supabase.com](https://supabase.com) → **New Project**
-2. Crear el proyecto (guardar la contraseña de la DB)
-3. Ir a **SQL Editor** y ejecutar el contenido de `supabase/schema.sql`
-
-### 3. Configurar variables de entorno
-
-```bash
+# 3. Configurar variables de entorno
 cp .env.local.example .env.local
-```
+# Completar con las credenciales de Supabase
 
-Editar `.env.local`:
+# 4. Ejecutar el schema en Supabase
+# Abrir Supabase → SQL Editor → pegar contenido de supabase/schema.sql
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
+# 5. Crear usuario en Supabase → Authentication → Users
 
-Las claves se encuentran en Supabase → **Project Settings → API**.
-
-### 4. Activar Realtime en Supabase
-
-1. Ir a **Database → Replication**
-2. Activar `time_errors` en la sección **Source**
-
-> El schema.sql ya incluye `alter publication supabase_realtime add table public.time_errors;`
-
-### 5. Correr la aplicación
-
-```bash
+# 6. Iniciar el servidor
 npm run dev
 ```
 
@@ -93,88 +125,34 @@ Abrir [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## 📋 Columnas de la tabla
+## Variables de entorno
 
-| Campo DB | Columna UI | Tipo |
-|---|---|---|
-| `fecha` | Fecha | date |
-| `dia` | Día | text (auto) |
-| `contrato` | Contrato | text |
-| `empleado` | Apellido y Nombre | text |
-| `motivo` | Motivo | text |
-| `sector` | Área / Sector | text |
-| `ot` | OT | text |
-| `ot_em` | OT Em. | text |
-| `ot_em2` | OT Em.2 | text |
-| `hh_normales` | HH Nor. | numeric |
-| `hh_50` | HH E.50% | numeric |
-| `hh_100` | HH E.100% | numeric |
-| `insa` | INSA | numeric |
-| `polu` | POLU | numeric |
-| `noct` | NOCT | numeric |
-| `estado` | Estado | enum |
-| `observaciones` | Observaciones | text |
-
----
-
-## 📥 Formato del Excel para importar
-
-El archivo Excel debe tener las siguientes columnas en la primera fila (el orden no importa):
-
-```
-Fecha | Contrato | Apellido y Nombre | Motivo | Área / Sector | OT | OT Em. | OT Em.2 | HH Nor. | HH E.50% | HH E.100% | Estado | Observaciones
-```
-
-- **Fecha**: acepta `DD/MM/YYYY`, `YYYY-MM-DD` o número serial de Excel
-- **Estado**: debe ser exactamente `Pendiente`, `En revisión` o `Corregido` (si no coincide, se asigna `Pendiente`)
-- Las columnas vacías se omiten sin error
-
----
-
-## 🔴 Funcionalidades en tiempo real
-
-Todos los cambios se sincronizan automáticamente entre todos los usuarios conectados vía **Supabase Realtime (PostgreSQL CDC)**:
-- Nuevas filas → aparecen instantáneamente
-- Ediciones de celda → se propagan en tiempo real
-- Eliminaciones → la fila desaparece para todos
-
----
-
-## 🛠 Despliegue en producción
-
-### Vercel (recomendado)
-
-```bash
-npm install -g vercel
-vercel --prod
-```
-
-Agregar las variables de entorno en el dashboard de Vercel.
-
-### Variables requeridas en producción
-
-```
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
 ```
 
 ---
 
-## 📊 Estados del sistema
+## Deploy en Vercel
 
-| Estado | Color | Significado |
-|---|---|---|
-| **Pendiente** | 🟡 Amarillo | Error detectado, sin acción |
-| **En revisión** | 🔵 Azul | Supervisor revisando |
-| **Corregido** | 🟢 Verde | Horas cargadas correctamente |
+1. Importar el repositorio en [vercel.com](https://vercel.com)
+2. Agregar las variables de entorno en **Settings → Environment Variables**
+3. Deploy automático en cada `git push origin main`
 
 ---
 
-## Próximas mejoras sugeridas
+## Validación de campos
 
-- [ ] Autenticación con Supabase Auth (roles: supervisor / operador)
-- [ ] Exportar a Excel los registros filtrados
-- [ ] Dashboard de métricas (errores por sector, tendencias)
-- [ ] Historial de cambios por registro (audit log)
-- [ ] Notificaciones por email al cambiar estado
-# sjgProyecto
+| Tipo | Regla |
+|---|---|
+| `name` | Solo letras, tildes, espacios y comas. Sin números. Máx 60 caracteres. |
+| `hora` | Solo dígitos, autoformatea a HH:MM. Rango válido 00:00–23:59. |
+| `ot` | Alfanumérico y guiones. Máx 20 caracteres. |
+| `contrato` | Solo números. Máx 10 caracteres. |
+
+---
+
+## Desarrollado por
+
+[Go Dream AI](https://www.godreamai.com/)
