@@ -6,6 +6,12 @@ export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+async function getCurrentUserId(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  if (!data.session?.user?.id) throw new Error("No autenticado");
+  return data.session.user.id;
+}
+
 export async function fetchTimeErrors(fecha?: string) {
   let q = supabase.from("time_errors").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false });
   if (fecha) q = q.eq("fecha", fecha);
@@ -15,7 +21,8 @@ export async function fetchTimeErrors(fecha?: string) {
 }
 
 export async function insertTimeError(row: Omit<TimeError, "id"|"created_at"|"updated_at"|"dia">) {
-  const { data, error } = await supabase.from("time_errors").insert(row).select().single();
+  const user_id = await getCurrentUserId();
+  const { data, error } = await supabase.from("time_errors").insert({ ...row, user_id }).select().single();
   if (error) throw error;
   return data as TimeError;
 }
@@ -23,7 +30,6 @@ export async function insertTimeError(row: Omit<TimeError, "id"|"created_at"|"up
 export async function updateTimeError(id: string, updates: Partial<TimeError>, prevValues?: Partial<TimeError>) {
   const { data, error } = await supabase.from("time_errors").update(updates).eq("id", id).select().single();
   if (error) throw error;
-  // Write history for each changed field
   if (prevValues) {
     const entries = Object.entries(updates).map(([campo, valor_nuevo]) => ({
       record_id: id,
@@ -42,15 +48,18 @@ export async function deleteTimeError(id: string) {
 }
 
 export async function duplicateTimeError(row: TimeError) {
+  const user_id = await getCurrentUserId();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id, created_at, updated_at, dia, ...rest } = row;
-  const { data, error } = await supabase.from("time_errors").insert({ ...rest, estado: "Pendiente" }).select().single();
+  const { data, error } = await supabase.from("time_errors").insert({ ...rest, estado: "Pendiente", user_id }).select().single();
   if (error) throw error;
   return data as TimeError;
 }
 
 export async function bulkInsertTimeErrors(rows: Omit<TimeError, "id"|"created_at"|"updated_at"|"dia">[]) {
-  const { data, error } = await supabase.from("time_errors").insert(rows).select();
+  const user_id = await getCurrentUserId();
+  const rowsWithUser = rows.map(r => ({ ...r, user_id }));
+  const { data, error } = await supabase.from("time_errors").insert(rowsWithUser).select();
   if (error) throw error;
   return data as TimeError[];
 }
